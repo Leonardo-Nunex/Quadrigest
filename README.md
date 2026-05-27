@@ -1,79 +1,189 @@
-# QuadriGest — Sistema de Gestão de Aluguel de Quadriciclos
+# QuadriGest v2 — Next.js + Prisma + PostgreSQL
 
-Sistema web completo para gestão de aluguel de quadriciclos. Inclui CRUD de veículos, aluguéis, manutenções, controle financeiro e dashboard de ROI.
+Sistema completo de gestão de aluguel de quadriciclos com banco de dados real na nuvem.
 
-## Funcionalidades
+---
 
-- **Veículos** — cadastro completo com placa, modelo, ano, cor, custo de aquisição, chassi e status
-- **Aluguéis** — registro de locações com cliente, veículo, duração, valor, forma de pagamento e status
-- **Manutenções** — controle preventivo e corretivo com custo, oficina e agendamento
-- **Financeiro** — lançamentos automáticos de receitas (aluguéis) e despesas (manutenções + custos operacionais)
-- **ROI & Análise** — dashboard com retorno sobre investimento, ticket médio, payback estimado e composição de despesas
-- **Exportar / Importar** — backup dos dados em JSON
+## Stack
 
-## Tecnologias
+| Camada | Tecnologia |
+|---|---|
+| Frontend | Next.js 14 (App Router) + React 18 |
+| Backend | Next.js API Routes (REST) |
+| ORM | Prisma 5 |
+| Banco | PostgreSQL — Neon.tech (gratuito) |
+| Deploy | Vercel (gratuito) |
 
-- HTML5 + CSS3 + JavaScript puro (zero dependências backend)
-- Chart.js para gráficos
-- localStorage para persistência de dados
-- Tabler Icons
+---
 
-## Deploy no Vercel
+## Passo 1 — Criar banco de dados gratuito no Neon
 
-### Opção 1 — Via Vercel CLI (recomendado)
+1. Acesse **https://neon.tech** e clique em **Sign Up** (pode entrar com GitHub)
+2. Clique em **New Project**
+3. Dê um nome: `quadrigest`
+4. Região: **South America (São Paulo)** → confirmar
+5. Clique em **Create Project**
+6. Na tela seguinte, vá em **Connection Details**
+7. No dropdown, selecione **Prisma** como framework
+8. Copie as duas strings que aparecem:
+   - `DATABASE_URL` (pooled — começa com `postgresql://...pgbouncer=true`)
+   - `DIRECT_URL` (direct — sem pgbouncer)
+
+---
+
+## Passo 2 — Configurar variáveis locais
 
 ```bash
-# Instalar Vercel CLI
-npm install -g vercel
-
-# Na pasta do projeto
-vercel
-
-# Seguir as instruções interativas
-# Quando perguntar "Which scope?": selecione sua conta
-# "Link to existing project?": N
-# "What's your project's name?": quadrigest
-# "In which directory is your code located?": ./
-# Confirmar e aguardar o deploy
+# Na pasta do projeto, crie o .env
+cp .env.example .env
 ```
 
-### Opção 2 — Via GitHub + Vercel Dashboard
+Edite o `.env` e cole as duas URLs copiadas do Neon:
 
-1. Crie um repositório no GitHub e faça push desta pasta
-2. Acesse [vercel.com](https://vercel.com) e clique em "Add New Project"
-3. Importe o repositório do GitHub
-4. Nas configurações do projeto, deixe tudo padrão (Framework: Other)
-5. Clique em "Deploy"
+```env
+DATABASE_URL="postgresql://usuario:senha@host/quadrigest?sslmode=require&pgbouncer=true"
+DIRECT_URL="postgresql://usuario:senha@host/quadrigest?sslmode=require"
+```
 
-### Opção 3 — Drag & Drop
+---
 
-1. Acesse [vercel.com/new](https://vercel.com/new)
-2. Arraste a pasta `quadrigest` para a área de upload
-3. Aguarde o deploy automático
+## Passo 3 — Instalar dependências e criar as tabelas
+
+```bash
+# Instalar pacotes
+npm install
+
+# Criar as tabelas no banco (roda as migrations)
+npx prisma db push
+
+# (Opcional) Popular com dados de exemplo para testar
+npx ts-node prisma/seed.ts
+```
+
+---
+
+## Passo 4 — Rodar localmente
+
+```bash
+npm run dev
+```
+
+Acesse **http://localhost:3000** — o sistema estará funcionando com banco real.
+
+---
+
+## Passo 5 — Deploy no Vercel
+
+### 5.1 — Subir o código para o GitHub
+
+```bash
+git init
+git add .
+git commit -m "QuadriGest v2 - Next.js + Prisma"
+git branch -M main
+git remote add origin https://github.com/SEU_USUARIO/quadrigest.git
+git push -u origin main
+```
+
+### 5.2 — Criar projeto no Vercel
+
+1. Acesse **https://vercel.com** → **New Project**
+2. Importe o repositório `quadrigest` do GitHub
+3. **Framework Preset**: Next.js (detecta automaticamente)
+4. Clique em **Environment Variables** e adicione:
+
+| Nome | Valor |
+|---|---|
+| `DATABASE_URL` | (cole a URL pooled do Neon) |
+| `DIRECT_URL` | (cole a URL direct do Neon) |
+
+5. Clique em **Deploy**
+
+### 5.3 — Criar as tabelas no banco de produção
+
+Após o primeiro deploy, execute uma vez:
+
+```bash
+# Aponta para o banco de produção e cria as tabelas
+npx prisma db push
+```
+
+Ou via Vercel CLI:
+```bash
+npm i -g vercel
+vercel env pull .env.production
+DATABASE_URL=$(grep DATABASE_URL .env.production | cut -d= -f2) npx prisma db push
+```
+
+---
 
 ## Estrutura do projeto
 
 ```
-quadrigest/
-├── index.html      # Aplicação completa (HTML + CSS + JS)
-├── vercel.json     # Configuração do Vercel
-└── README.md       # Este arquivo
+quadrigest-next/
+├── prisma/
+│   ├── schema.prisma        # Modelos do banco (ORM)
+│   └── seed.ts              # Dados de exemplo
+├── src/
+│   ├── app/
+│   │   ├── api/
+│   │   │   ├── dashboard/route.ts      # GET — métricas agregadas
+│   │   │   ├── veiculos/
+│   │   │   │   ├── route.ts            # GET, POST
+│   │   │   │   └── [id]/route.ts       # PUT, DELETE
+│   │   │   ├── alugueis/
+│   │   │   │   ├── route.ts            # GET, POST
+│   │   │   │   └── [id]/route.ts       # PUT, DELETE
+│   │   │   ├── manutencoes/
+│   │   │   │   ├── route.ts            # GET, POST
+│   │   │   │   └── [id]/route.ts       # PUT, DELETE
+│   │   │   └── lancamentos/
+│   │   │       ├── route.ts            # GET, POST
+│   │   │       └── [id]/route.ts       # PUT, DELETE
+│   │   ├── globals.css
+│   │   ├── layout.tsx
+│   │   └── page.tsx                    # Frontend SPA completo
+│   └── lib/
+│       └── prisma.ts                   # Singleton Prisma Client
+├── .env.example
+├── .gitignore
+├── next.config.js
+├── package.json
+└── tsconfig.json
 ```
 
-## Dados
+---
 
-Os dados são salvos no `localStorage` do navegador. Para não perder os dados:
-- Use o botão **Exportar** para salvar um arquivo `.json` de backup
-- Use o botão **Importar** para restaurar um backup
+## Endpoints da API
 
-## Personalização
+| Método | Endpoint | Descrição |
+|---|---|---|
+| GET | `/api/dashboard` | Todos os dados + métricas |
+| GET | `/api/veiculos` | Listar veículos |
+| POST | `/api/veiculos` | Criar veículo |
+| PUT | `/api/veiculos/:id` | Atualizar veículo |
+| DELETE | `/api/veiculos/:id` | Excluir veículo |
+| GET | `/api/alugueis` | Listar aluguéis |
+| POST | `/api/alugueis` | Criar aluguel + lançamento automático |
+| PUT | `/api/alugueis/:id` | Atualizar aluguel |
+| DELETE | `/api/alugueis/:id` | Excluir aluguel + lançamento |
+| GET | `/api/manutencoes` | Listar manutenções |
+| POST | `/api/manutencoes` | Criar manutenção + despesa automática |
+| PUT | `/api/manutencoes/:id` | Atualizar manutenção |
+| DELETE | `/api/manutencoes/:id` | Excluir manutenção |
+| GET | `/api/lancamentos` | Listar lançamentos financeiros |
+| POST | `/api/lancamentos` | Criar despesa manual |
+| PUT | `/api/lancamentos/:id` | Atualizar lançamento |
+| DELETE | `/api/lancamentos/:id` | Excluir lançamento |
 
-Para alterar o nome do sistema ou as cores, edite as variáveis CSS no início do arquivo `index.html`:
+---
 
-```css
-:root {
-  --green: #1a9e6e;       /* Cor principal */
-  --sidebar-bg: #0d1b16;  /* Fundo da sidebar */
-  /* ... */
-}
-```
+## Diferença da v1
+
+| | v1 (HTML puro) | v2 (Next.js + Prisma) |
+|---|---|---|
+| Dados | localStorage (navegador) | PostgreSQL na nuvem |
+| Persistência | Só no mesmo computador | Qualquer dispositivo |
+| Backend | Nenhum | API REST completa |
+| Multi-usuário | Não | Sim |
+| Deploy | Arquivo estático | Vercel serverless |
