@@ -1,20 +1,16 @@
 'use client'
-// src/app/page.tsx
-// Frontend completo — consome as APIs REST do Next.js (Prisma + PostgreSQL)
-
 import { useEffect, useRef, useState, useCallback } from 'react'
 
-// ─── tipos ───────────────────────────────────────────────────────────────────
 type Veiculo = { id: string; placa: string; modelo: string; ano?: number; cor?: string; custo: number; chassi?: string; status: string; obs?: string }
 type Aluguel = { id: string; data: string; veiculoId: string; veiculo?: { placa: string; modelo: string }; cliente: string; contato?: string; duracao?: number; valor: number; pagamento: string; status: string; rota?: string; obs?: string }
 type Manutencao = { id: string; data: string; veiculoId: string; veiculo?: { placa: string; modelo: string }; tipo: string; descricao: string; custo: number; oficina?: string; proxima?: string; status: string }
 type Lancamento = { id: string; data: string; descricao: string; categoria: string; tipo: string; valor: number; veiculoId?: string; aluguelId?: string; manutencaoId?: string }
 type Metricas = { totalVeiculos: number; veiculosDisponiveis: number; totalAlugueis: number; alugueisAndamento: number; totalReceitas: number; totalDespesas: number; lucro: number; custoAquisicao: number; roi: number; ticketMedio: number; totalManutencoes: number; manutencoesAgendadas: number }
 type DashData = { veiculos: Veiculo[]; alugueis: Aluguel[]; manutencoes: Manutencao[]; lancamentos: Lancamento[]; metricas: Metricas }
+type FormRef = Record<string, HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null>
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
 const BRL = (v: number) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
-const fmtDate = (d: string) => { if (!d) return '—'; const dt = new Date(d); return dt.toLocaleDateString('pt-BR') }
+const fmtDate = (d: string) => { if (!d) return '—'; return new Date(d).toLocaleDateString('pt-BR') }
 const isoDate = (d: string) => d ? new Date(d).toISOString().split('T')[0] : ''
 const COLORS = ['#1a9e6e', '#3b82c4', '#e05252', '#f5a623', '#7c6fe0', '#d4538b', '#4cbf94']
 const statusMap: Record<string, [string, string]> = {
@@ -30,12 +26,15 @@ const pagMap: Record<string, string> = { PIX: 'PIX', DINHEIRO: 'Dinheiro', CARTA
 const last6Months = () => { const ms = []; for (let i = 5; i >= 0; i--) { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - i); ms.push({ key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, label: d.toLocaleString('pt-BR', { month: 'short', year: '2-digit' }) }) } return ms }
 const getMonthKey = (d: string) => d ? d.slice(0, 7) : ''
 
-// ─── componentes pequenos ────────────────────────────────────────────────────
 function Toast({ msg, err }: { msg: string; err?: boolean }) {
   return <div className={`toast${err ? ' error' : ''}`}><i className={`ti ti-${err ? 'alert-circle' : 'circle-check'}`}></i>{msg}</div>
 }
 
-// ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
+// helper para setar ref sem retornar valor (corrige erro de tipo do TypeScript)
+function setRef(refs: React.MutableRefObject<FormRef>, key: string) {
+  return (el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null) => { refs.current[key] = el }
+}
+
 export default function App() {
   const [page, setPage] = useState('dashboard')
   const [data, setData] = useState<DashData | null>(null)
@@ -44,82 +43,51 @@ export default function App() {
   const [manutFilter, setManutFilter] = useState('TODAS')
   const [finFilter, setFinFilter] = useState('TODAS')
   const chartsRef = useRef<Record<string, any>>({})
-
-  // modal state
   const [modal, setModal] = useState<string | null>(null)
   const [editId, setEditId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
-  // form refs
-  const vf = useRef<Record<string, HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null>>({})
-  const af = useRef<Record<string, HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null>>({})
-  const mf = useRef<Record<string, HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null>>({})
-  const df = useRef<Record<string, HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null>>({})
+  const vf = useRef<FormRef>({})
+  const af = useRef<FormRef>({})
+  const mf = useRef<FormRef>({})
+  const df = useRef<FormRef>({})
 
-  const showToast = (msg: string, err = false) => {
-    setToast({ msg, err })
-    setTimeout(() => setToast(null), 3000)
-  }
+  const showToast = (msg: string, err = false) => { setToast({ msg, err }); setTimeout(() => setToast(null), 3000) }
 
   const loadData = useCallback(async () => {
     try {
       setLoading(true)
       const res = await fetch('/api/dashboard')
       if (!res.ok) throw new Error()
-      const d = await res.json()
-      setData(d)
-    } catch {
-      showToast('Erro ao carregar dados. Verifique a conexão com o banco.', true)
-    } finally {
-      setLoading(false)
-    }
+      setData(await res.json())
+    } catch { showToast('Erro ao carregar dados. Verifique a conexão com o banco.', true) }
+    finally { setLoading(false) }
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
-  useEffect(() => { if (data && page === 'dashboard') renderCharts() }, [data, page])
+  useEffect(() => { if (data && page === 'dashboard') setTimeout(renderCharts, 100) }, [data, page])
 
-  // ── charts ─────────────────────────────────────────────────────────────────
   function renderCharts() {
     if (!data || typeof window === 'undefined') return
     const w = window as any
-    if (!w.Chart) return
+    if (!w.Chart) { setTimeout(renderCharts, 300); return }
     const months = last6Months()
     const { lancamentos, alugueis, manutencoes, veiculos } = data
-
-    const destroy = (key: string) => { if (chartsRef.current[key]) { chartsRef.current[key].destroy(); delete chartsRef.current[key] } }
+    const destroy = (k: string) => { if (chartsRef.current[k]) { chartsRef.current[k].destroy(); delete chartsRef.current[k] } }
     const opts = (yFmt: (v: number) => string) => ({ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { font: { size: 10 } } }, y: { ticks: { callback: yFmt, font: { size: 10 } } } } })
-
-    // receita vs custo
     const recM = months.map(mo => lancamentos.filter(l => l.tipo === 'RECEITA' && getMonthKey(l.data) === mo.key).reduce((s, l) => s + l.valor, 0))
     const desM = months.map(mo => lancamentos.filter(l => l.tipo === 'DESPESA' && getMonthKey(l.data) === mo.key).reduce((s, l) => s + l.valor, 0))
     const labels = months.map(m => m.label)
-    destroy('rc')
-    const rc = document.getElementById('chartRC') as HTMLCanvasElement
+    destroy('rc'); const rc = document.getElementById('chartRC') as HTMLCanvasElement
     if (rc) chartsRef.current.rc = new w.Chart(rc, { type: 'bar', data: { labels, datasets: [{ label: 'Receita', data: recM, backgroundColor: '#1a9e6e', borderRadius: 4 }, { label: 'Custos', data: desM, backgroundColor: '#e05252', borderRadius: 4 }] }, options: opts(v => 'R$' + v.toLocaleString('pt-BR')) })
-
-    // lucro
-    const lucM = months.map((_, i) => recM[i] - desM[i])
-    destroy('lc')
-    const lc = document.getElementById('chartLC') as HTMLCanvasElement
-    if (lc) chartsRef.current.lc = new w.Chart(lc, { type: 'line', data: { labels, datasets: [{ data: lucM, borderColor: '#3b82c4', backgroundColor: 'rgba(59,130,196,0.08)', fill: true, tension: 0.4, pointBackgroundColor: '#3b82c4', pointRadius: 4 }] }, options: opts(v => 'R$' + v.toLocaleString('pt-BR')) })
-
-    // por veículo
-    destroy('vei')
-    const vc = document.getElementById('chartVei') as HTMLCanvasElement
-    if (vc && veiculos.length) {
-      const vData = veiculos.map(v => ({ l: v.placa, n: alugueis.filter(a => a.veiculoId === v.id && a.status === 'CONCLUIDO').length }))
-      chartsRef.current.vei = new w.Chart(vc, { type: 'doughnut', data: { labels: vData.map(v => v.l), datasets: [{ data: vData.map(v => v.n), backgroundColor: COLORS }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, cutout: '60%' } })
-    }
-
-    // manutenção
-    const prevM = months.map(mo => manutencoes.filter(m => m.tipo === 'PREVENTIVA' && getMonthKey(m.data) === mo.key).reduce((s, m) => s + m.custo, 0))
-    const corrM = months.map(mo => manutencoes.filter(m => m.tipo === 'CORRETIVA' && getMonthKey(m.data) === mo.key).reduce((s, m) => s + m.custo, 0))
-    destroy('mn')
-    const mn = document.getElementById('chartMn') as HTMLCanvasElement
-    if (mn) chartsRef.current.mn = new w.Chart(mn, { type: 'bar', data: { labels, datasets: [{ label: 'Preventiva', data: prevM, backgroundColor: '#f5a623', borderRadius: 4 }, { label: 'Corretiva', data: corrM, backgroundColor: '#e05252', borderRadius: 4 }] }, options: opts(v => 'R$' + v.toLocaleString('pt-BR')) })
+    destroy('lc'); const lc = document.getElementById('chartLC') as HTMLCanvasElement
+    if (lc) chartsRef.current.lc = new w.Chart(lc, { type: 'line', data: { labels, datasets: [{ data: months.map((_, i) => recM[i] - desM[i]), borderColor: '#3b82c4', backgroundColor: 'rgba(59,130,196,0.08)', fill: true, tension: 0.4, pointBackgroundColor: '#3b82c4', pointRadius: 4 }] }, options: opts(v => 'R$' + v.toLocaleString('pt-BR')) })
+    destroy('vei'); const vc = document.getElementById('chartVei') as HTMLCanvasElement
+    if (vc && veiculos.length) { const vData = veiculos.map(v => ({ l: v.placa, n: alugueis.filter(a => a.veiculoId === v.id && a.status === 'CONCLUIDO').length })); chartsRef.current.vei = new w.Chart(vc, { type: 'doughnut', data: { labels: vData.map(v => v.l), datasets: [{ data: vData.map(v => v.n), backgroundColor: COLORS }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, cutout: '60%' } }) }
+    destroy('mn'); const mn = document.getElementById('chartMn') as HTMLCanvasElement
+    if (mn) chartsRef.current.mn = new w.Chart(mn, { type: 'bar', data: { labels, datasets: [{ label: 'Preventiva', data: months.map(mo => manutencoes.filter(m => m.tipo === 'PREVENTIVA' && getMonthKey(m.data) === mo.key).reduce((s, m) => s + m.custo, 0)), backgroundColor: '#f5a623', borderRadius: 4 }, { label: 'Corretiva', data: months.map(mo => manutencoes.filter(m => m.tipo === 'CORRETIVA' && getMonthKey(m.data) === mo.key).reduce((s, m) => s + m.custo, 0)), backgroundColor: '#e05252', borderRadius: 4 }] }, options: opts(v => 'R$' + v.toLocaleString('pt-BR')) })
   }
 
-  // ── crud helpers ────────────────────────────────────────────────────────────
   async function apiCall(url: string, method: string, body?: object) {
     const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined })
     const json = await res.json()
@@ -127,8 +95,8 @@ export default function App() {
     return json
   }
 
-  function getVal(refs: React.MutableRefObject<Record<string, any>>, key: string) { return refs.current[key]?.value || '' }
-  function setVal(refs: React.MutableRefObject<Record<string, any>>, key: string, val: string) { if (refs.current[key]) refs.current[key].value = val }
+  const getVal = (refs: React.MutableRefObject<FormRef>, key: string) => refs.current[key]?.value || ''
+  const setVal = (refs: React.MutableRefObject<FormRef>, key: string, val: string) => { if (refs.current[key]) refs.current[key]!.value = val }
 
   function openModal(type: string, id?: string) {
     setModal(type); setEditId(id || null)
@@ -159,10 +127,8 @@ export default function App() {
     const body = { placa: getVal(vf,'placa'), modelo: getVal(vf,'modelo'), ano: getVal(vf,'ano'), cor: getVal(vf,'cor'), custo: getVal(vf,'custo'), chassi: getVal(vf,'chassi'), status: getVal(vf,'status'), obs: getVal(vf,'obs') }
     if (!body.placa || !body.modelo) { showToast('Placa e modelo são obrigatórios', true); return }
     setSaving(true)
-    try {
-      editId ? await apiCall(`/api/veiculos/${editId}`, 'PUT', body) : await apiCall('/api/veiculos', 'POST', body)
-      setModal(null); await loadData(); showToast('Veículo salvo!')
-    } catch (e: any) { showToast(e.message, true) }
+    try { editId ? await apiCall(`/api/veiculos/${editId}`, 'PUT', body) : await apiCall('/api/veiculos', 'POST', body); setModal(null); await loadData(); showToast('Veículo salvo!') }
+    catch (e: any) { showToast(e.message, true) }
     setSaving(false)
   }
 
@@ -170,10 +136,8 @@ export default function App() {
     const body = { data: getVal(af,'data'), veiculoId: getVal(af,'veiculo'), cliente: getVal(af,'cliente'), contato: getVal(af,'contato'), duracao: getVal(af,'duracao'), valor: getVal(af,'valor'), pagamento: getVal(af,'pagamento'), status: getVal(af,'status'), rota: getVal(af,'rota'), obs: getVal(af,'obs') }
     if (!body.data || !body.veiculoId || !body.cliente || !body.valor) { showToast('Preencha os campos obrigatórios', true); return }
     setSaving(true)
-    try {
-      editId ? await apiCall(`/api/alugueis/${editId}`, 'PUT', body) : await apiCall('/api/alugueis', 'POST', body)
-      setModal(null); await loadData(); showToast('Aluguel registrado!')
-    } catch (e: any) { showToast(e.message, true) }
+    try { editId ? await apiCall(`/api/alugueis/${editId}`, 'PUT', body) : await apiCall('/api/alugueis', 'POST', body); setModal(null); await loadData(); showToast('Aluguel registrado!') }
+    catch (e: any) { showToast(e.message, true) }
     setSaving(false)
   }
 
@@ -181,10 +145,8 @@ export default function App() {
     const body = { data: getVal(mf,'data'), veiculoId: getVal(mf,'veiculo'), tipo: getVal(mf,'tipo'), descricao: getVal(mf,'desc'), custo: getVal(mf,'custo'), oficina: getVal(mf,'oficina'), proxima: getVal(mf,'proxima'), status: getVal(mf,'status') }
     if (!body.data || !body.veiculoId || !body.descricao) { showToast('Preencha os campos obrigatórios', true); return }
     setSaving(true)
-    try {
-      editId ? await apiCall(`/api/manutencoes/${editId}`, 'PUT', body) : await apiCall('/api/manutencoes', 'POST', body)
-      setModal(null); await loadData(); showToast('Manutenção registrada!')
-    } catch (e: any) { showToast(e.message, true) }
+    try { editId ? await apiCall(`/api/manutencoes/${editId}`, 'PUT', body) : await apiCall('/api/manutencoes', 'POST', body); setModal(null); await loadData(); showToast('Manutenção registrada!') }
+    catch (e: any) { showToast(e.message, true) }
     setSaving(false)
   }
 
@@ -192,22 +154,17 @@ export default function App() {
     const body = { data: getVal(df,'data'), descricao: getVal(df,'desc'), categoria: getVal(df,'categoria'), valor: getVal(df,'valor'), veiculoId: getVal(df,'veiculo') || null }
     if (!body.data || !body.descricao || !body.valor) { showToast('Preencha os campos obrigatórios', true); return }
     setSaving(true)
-    try {
-      editId ? await apiCall(`/api/lancamentos/${editId}`, 'PUT', body) : await apiCall('/api/lancamentos', 'POST', body)
-      setModal(null); await loadData(); showToast('Despesa registrada!')
-    } catch (e: any) { showToast(e.message, true) }
+    try { editId ? await apiCall(`/api/lancamentos/${editId}`, 'PUT', body) : await apiCall('/api/lancamentos', 'POST', body); setModal(null); await loadData(); showToast('Despesa registrada!') }
+    catch (e: any) { showToast(e.message, true) }
     setSaving(false)
   }
 
   async function deleteItem(store: string, id: string) {
     if (!confirm('Remover este registro?')) return
-    try {
-      await apiCall(`/api/${store}/${id}`, 'DELETE')
-      await loadData(); showToast('Registro removido.')
-    } catch (e: any) { showToast(e.message, true) }
+    try { await apiCall(`/api/${store}/${id}`, 'DELETE'); await loadData(); showToast('Registro removido.') }
+    catch (e: any) { showToast(e.message, true) }
   }
 
-  // ── sidebar ─────────────────────────────────────────────────────────────────
   const pages = [
     { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard', section: 'Visão Geral' },
     { id: 'veiculos', label: 'Veículos', icon: 'car', section: 'Operações', count: data?.veiculos.length },
@@ -222,22 +179,19 @@ export default function App() {
   const manutencoes = data?.manutencoes || []
   const lancamentos = data?.lancamentos || []
   const m = data?.metricas
-
   const manutFilt = manutencoes.filter(x => manutFilter === 'TODAS' ? true : manutFilter === 'AGENDADA' ? x.status === 'AGENDADA' : x.tipo === manutFilter)
   const lancFilt = lancamentos.filter(x => finFilter === 'TODAS' ? true : x.tipo === finFilter)
 
-  // ── render ──────────────────────────────────────────────────────────────────
   return (
     <>
       <div className="app">
-        {/* SIDEBAR */}
         <aside className="sidebar" id="sidebar">
           <div className="sidebar-logo">
             <div className="sidebar-logo-icon"><i className="ti ti-steering-wheel"></i></div>
             <div><div className="sidebar-logo-text">QuadriGest</div><div className="sidebar-logo-sub">Gestão de Aluguel</div></div>
           </div>
           <nav className="sidebar-nav">
-            {pages.map((p, i) => (
+            {pages.map((p) => (
               <div key={p.id}>
                 {p.section && <div className="nav-section-label">{p.section}</div>}
                 <a className={`nav-item${page === p.id ? ' active' : ''}`} onClick={e => { e.preventDefault(); setPage(p.id) }} href="#">
@@ -250,7 +204,6 @@ export default function App() {
           <div className="sidebar-bottom"><div className="sidebar-version">QuadriGest v2.0 · Prisma + PostgreSQL</div></div>
         </aside>
 
-        {/* MAIN */}
         <div className="main">
           <header className="topbar">
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -271,7 +224,6 @@ export default function App() {
               <div className="loading"><div className="spinner"></div> Carregando dados...</div>
             ) : (
               <>
-                {/* ── DASHBOARD ── */}
                 {page === 'dashboard' && m && (
                   <div>
                     <div className="dash-welcome">
@@ -295,24 +247,19 @@ export default function App() {
                   </div>
                 )}
 
-                {/* ── VEÍCULOS ── */}
                 {page === 'veiculos' && (
                   <div>
                     <div className="section-header"><div><div className="section-title">Veículos</div><div className="section-subtitle">Cadastro e controle da frota</div></div><button className="btn btn-primary" onClick={() => openModal('veiculo')}><i className="ti ti-plus"></i> Novo veículo</button></div>
-                    <div className="card">
-                      <div className="table-wrapper">
-                        <table>
-                          <thead><tr><th>Placa</th><th>Modelo</th><th>Ano</th><th>Cor</th><th>Custo aquisição</th><th>Status</th><th>Ações</th></tr></thead>
-                          <tbody>{veiculos.length === 0 ? <tr><td colSpan={7}><div className="empty-state"><i className="ti ti-car-off"></i><p>Nenhum veículo cadastrado</p></div></td></tr> : veiculos.map(v => (
-                            <tr key={v.id}><td className="fw-semibold nowrap">{v.placa}</td><td>{v.modelo}</td><td>{v.ano || '—'}</td><td>{v.cor || '—'}</td><td className="nowrap">{BRL(v.custo)}</td><td><Badge s={v.status} /></td><td><div className="td-actions"><button className="btn btn-secondary btn-sm btn-icon" onClick={() => openModal('veiculo', v.id)}><i className="ti ti-edit"></i></button><button className="btn btn-danger btn-sm btn-icon" onClick={() => deleteItem('veiculos', v.id)}><i className="ti ti-trash"></i></button></div></td></tr>
-                          ))}</tbody>
-                        </table>
-                      </div>
-                    </div>
+                    <div className="card"><div className="table-wrapper"><table>
+                      <thead><tr><th>Placa</th><th>Modelo</th><th>Ano</th><th>Cor</th><th>Custo aquisição</th><th>Status</th><th>Ações</th></tr></thead>
+                      <tbody>{veiculos.length === 0 ? <tr><td colSpan={7}><div className="empty-state"><i className="ti ti-car-off"></i><p>Nenhum veículo cadastrado</p></div></td></tr> : veiculos.map(v => (
+                        <tr key={v.id}><td className="fw-semibold nowrap">{v.placa}</td><td>{v.modelo}</td><td>{v.ano || '—'}</td><td>{v.cor || '—'}</td><td className="nowrap">{BRL(v.custo)}</td><td><Badge s={v.status} /></td>
+                        <td><div className="td-actions"><button className="btn btn-secondary btn-sm btn-icon" onClick={() => openModal('veiculo', v.id)}><i className="ti ti-edit"></i></button><button className="btn btn-danger btn-sm btn-icon" onClick={() => deleteItem('veiculos', v.id)}><i className="ti ti-trash"></i></button></div></td></tr>
+                      ))}</tbody>
+                    </table></div></div>
                   </div>
                 )}
 
-                {/* ── ALUGUÉIS ── */}
                 {page === 'alugueis' && (
                   <div>
                     <div className="section-header"><div><div className="section-title">Aluguéis</div><div className="section-subtitle">Registro de locações</div></div><button className="btn btn-primary" onClick={() => openModal('aluguel')}><i className="ti ti-plus"></i> Novo aluguel</button></div>
@@ -325,13 +272,13 @@ export default function App() {
                     <div className="card"><div className="table-wrapper"><table>
                       <thead><tr><th>Data</th><th>Veículo</th><th>Cliente</th><th>Duração</th><th>Valor</th><th>Pagamento</th><th>Status</th><th>Ações</th></tr></thead>
                       <tbody>{alugueis.length === 0 ? <tr><td colSpan={8}><div className="empty-state"><i className="ti ti-route-off"></i><p>Nenhum aluguel registrado</p></div></td></tr> : alugueis.map(a => (
-                        <tr key={a.id}><td className="nowrap">{fmtDate(a.data)}</td><td className="nowrap">{a.veiculo ? `${a.veiculo.placa} — ${a.veiculo.modelo}` : '—'}</td><td>{a.cliente}</td><td className="nowrap">{a.duracao ? `${a.duracao}h` : '—'}</td><td className="nowrap fw-semibold">{BRL(a.valor)}</td><td>{pagMap[a.pagamento] || a.pagamento}</td><td><Badge s={a.status} /></td><td><div className="td-actions"><button className="btn btn-secondary btn-sm btn-icon" onClick={() => openModal('aluguel', a.id)}><i className="ti ti-edit"></i></button><button className="btn btn-danger btn-sm btn-icon" onClick={() => deleteItem('alugueis', a.id)}><i className="ti ti-trash"></i></button></div></td></tr>
+                        <tr key={a.id}><td className="nowrap">{fmtDate(a.data)}</td><td className="nowrap">{a.veiculo ? `${a.veiculo.placa} — ${a.veiculo.modelo}` : '—'}</td><td>{a.cliente}</td><td className="nowrap">{a.duracao ? `${a.duracao}h` : '—'}</td><td className="nowrap fw-semibold">{BRL(a.valor)}</td><td>{pagMap[a.pagamento] || a.pagamento}</td><td><Badge s={a.status} /></td>
+                        <td><div className="td-actions"><button className="btn btn-secondary btn-sm btn-icon" onClick={() => openModal('aluguel', a.id)}><i className="ti ti-edit"></i></button><button className="btn btn-danger btn-sm btn-icon" onClick={() => deleteItem('alugueis', a.id)}><i className="ti ti-trash"></i></button></div></td></tr>
                       ))}</tbody>
                     </table></div></div>
                   </div>
                 )}
 
-                {/* ── MANUTENÇÕES ── */}
                 {page === 'manutencoes' && (
                   <div>
                     <div className="section-header"><div><div className="section-title">Manutenções</div><div className="section-subtitle">Controle preventivo e corretivo</div></div><button className="btn btn-primary" onClick={() => openModal('manutencao')}><i className="ti ti-plus"></i> Nova manutenção</button></div>
@@ -339,13 +286,13 @@ export default function App() {
                     <div className="card"><div className="table-wrapper"><table>
                       <thead><tr><th>Data</th><th>Veículo</th><th>Tipo</th><th>Descrição</th><th>Oficina</th><th>Custo</th><th>Status</th><th>Ações</th></tr></thead>
                       <tbody>{manutFilt.length === 0 ? <tr><td colSpan={8}><div className="empty-state"><i className="ti ti-tool-off"></i><p>Nenhuma manutenção registrada</p></div></td></tr> : manutFilt.map(mn => (
-                        <tr key={mn.id}><td className="nowrap">{fmtDate(mn.data)}</td><td className="nowrap">{mn.veiculo ? `${mn.veiculo.placa} — ${mn.veiculo.modelo}` : '—'}</td><td><Badge s={mn.tipo} /></td><td>{mn.descricao}</td><td>{mn.oficina || '—'}</td><td className="nowrap">{BRL(mn.custo)}</td><td><Badge s={mn.status} /></td><td><div className="td-actions"><button className="btn btn-secondary btn-sm btn-icon" onClick={() => openModal('manutencao', mn.id)}><i className="ti ti-edit"></i></button><button className="btn btn-danger btn-sm btn-icon" onClick={() => deleteItem('manutencoes', mn.id)}><i className="ti ti-trash"></i></button></div></td></tr>
+                        <tr key={mn.id}><td className="nowrap">{fmtDate(mn.data)}</td><td className="nowrap">{mn.veiculo ? `${mn.veiculo.placa} — ${mn.veiculo.modelo}` : '—'}</td><td><Badge s={mn.tipo} /></td><td>{mn.descricao}</td><td>{mn.oficina || '—'}</td><td className="nowrap">{BRL(mn.custo)}</td><td><Badge s={mn.status} /></td>
+                        <td><div className="td-actions"><button className="btn btn-secondary btn-sm btn-icon" onClick={() => openModal('manutencao', mn.id)}><i className="ti ti-edit"></i></button><button className="btn btn-danger btn-sm btn-icon" onClick={() => deleteItem('manutencoes', mn.id)}><i className="ti ti-trash"></i></button></div></td></tr>
                       ))}</tbody>
                     </table></div></div>
                   </div>
                 )}
 
-                {/* ── FINANCEIRO ── */}
                 {page === 'financeiro' && m && (
                   <div>
                     <div className="section-header"><div><div className="section-title">Financeiro</div><div className="section-subtitle">Receitas, despesas e fluxo de caixa</div></div><button className="btn btn-primary" onClick={() => openModal('despesa')}><i className="ti ti-plus"></i> Nova despesa</button></div>
@@ -358,13 +305,13 @@ export default function App() {
                     <div className="card"><div className="table-wrapper"><table>
                       <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Tipo</th><th>Valor</th><th>Ações</th></tr></thead>
                       <tbody>{lancFilt.length === 0 ? <tr><td colSpan={6}><div className="empty-state"><i className="ti ti-coin-off"></i><p>Nenhuma movimentação</p></div></td></tr> : lancFilt.map(l => (
-                        <tr key={l.id}><td className="nowrap">{fmtDate(l.data)}</td><td>{l.descricao}</td><td>{catMap[l.categoria] || l.categoria}</td><td><Badge s={l.tipo} /></td><td className={`nowrap fw-semibold ${l.tipo === 'RECEITA' ? 'text-green' : 'text-red'}`}>{l.tipo === 'RECEITA' ? '+' : '-'} {BRL(l.valor)}</td><td><div className="td-actions">{!l.aluguelId && !l.manutencaoId && <button className="btn btn-secondary btn-sm btn-icon" onClick={() => openModal('despesa', l.id)}><i className="ti ti-edit"></i></button>}<button className="btn btn-danger btn-sm btn-icon" onClick={() => deleteItem('lancamentos', l.id)}><i className="ti ti-trash"></i></button></div></td></tr>
+                        <tr key={l.id}><td className="nowrap">{fmtDate(l.data)}</td><td>{l.descricao}</td><td>{catMap[l.categoria] || l.categoria}</td><td><Badge s={l.tipo} /></td><td className={`nowrap fw-semibold ${l.tipo === 'RECEITA' ? 'text-green' : 'text-red'}`}>{l.tipo === 'RECEITA' ? '+' : '-'} {BRL(l.valor)}</td>
+                        <td><div className="td-actions">{!l.aluguelId && !l.manutencaoId && <button className="btn btn-secondary btn-sm btn-icon" onClick={() => openModal('despesa', l.id)}><i className="ti ti-edit"></i></button>}<button className="btn btn-danger btn-sm btn-icon" onClick={() => deleteItem('lancamentos', l.id)}><i className="ti ti-trash"></i></button></div></td></tr>
                       ))}</tbody>
                     </table></div></div>
                   </div>
                 )}
 
-                {/* ── ROI ── */}
                 {page === 'roi' && m && (
                   <div>
                     <div className="section-header"><div><div className="section-title">ROI &amp; Análise</div><div className="section-subtitle">Retorno sobre investimento</div></div></div>
@@ -389,17 +336,26 @@ export default function App() {
         </div>
       </div>
 
-      {/* ── MODAIS ── */}
+      {/* MODAIS */}
       {modal === 'veiculo' && (
         <div className="modal-overlay open" onClick={e => e.target === e.currentTarget && setModal(null)}>
           <div className="modal">
             <div className="modal-header"><div className="modal-title">{editId ? 'Editar' : 'Cadastrar'} Veículo</div><button className="modal-close" onClick={() => setModal(null)}><i className="ti ti-x"></i></button></div>
             <div className="modal-body">
-              <div className="form-row"><div className="form-group"><label>Placa *</label><input ref={el => vf.current.placa = el} placeholder="ABC-1234" /></div><div className="form-group"><label>Modelo *</label><input ref={el => vf.current.modelo = el} placeholder="Quadriciclo Sport 150" /></div></div>
-              <div className="form-row"><div className="form-group"><label>Ano</label><input ref={el => vf.current.ano = el} type="number" placeholder="2024" /></div><div className="form-group"><label>Cor</label><input ref={el => vf.current.cor = el} placeholder="Vermelho" /></div></div>
-              <div className="form-row"><div className="form-group"><label>Custo de aquisição (R$)</label><input ref={el => vf.current.custo = el} type="number" placeholder="8000" /></div><div className="form-group"><label>Status</label><select ref={el => vf.current.status = el}><option value="DISPONIVEL">Disponível</option><option value="ALUGADO">Alugado</option><option value="MANUTENCAO">Em manutenção</option><option value="INATIVO">Inativo</option></select></div></div>
-              <div className="form-group"><label>Chassi</label><input ref={el => vf.current.chassi = el} /></div>
-              <div className="form-group"><label>Observações</label><textarea ref={el => vf.current.obs = el as any}></textarea></div>
+              <div className="form-row">
+                <div className="form-group"><label>Placa *</label><input ref={setRef(vf,'placa')} placeholder="ABC-1234" /></div>
+                <div className="form-group"><label>Modelo *</label><input ref={setRef(vf,'modelo')} placeholder="Quadriciclo Sport 150" /></div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>Ano</label><input ref={setRef(vf,'ano')} type="number" placeholder="2024" /></div>
+                <div className="form-group"><label>Cor</label><input ref={setRef(vf,'cor')} placeholder="Vermelho" /></div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>Custo de aquisição (R$)</label><input ref={setRef(vf,'custo')} type="number" placeholder="8000" /></div>
+                <div className="form-group"><label>Status</label><select ref={setRef(vf,'status')}><option value="DISPONIVEL">Disponível</option><option value="ALUGADO">Alugado</option><option value="MANUTENCAO">Em manutenção</option><option value="INATIVO">Inativo</option></select></div>
+              </div>
+              <div className="form-group"><label>Chassi</label><input ref={setRef(vf,'chassi')} /></div>
+              <div className="form-group"><label>Observações</label><textarea ref={setRef(vf,'obs')}></textarea></div>
             </div>
             <div className="modal-footer"><button className="btn btn-secondary" onClick={() => setModal(null)}>Cancelar</button><button className="btn btn-primary" onClick={saveVeiculo} disabled={saving}>{saving ? 'Salvando...' : 'Salvar'}</button></div>
           </div>
@@ -411,11 +367,23 @@ export default function App() {
           <div className="modal">
             <div className="modal-header"><div className="modal-title">{editId ? 'Editar' : 'Registrar'} Aluguel</div><button className="modal-close" onClick={() => setModal(null)}><i className="ti ti-x"></i></button></div>
             <div className="modal-body">
-              <div className="form-row"><div className="form-group"><label>Data *</label><input ref={el => af.current.data = el} type="date" /></div><div className="form-group"><label>Veículo *</label><select ref={el => af.current.veiculo = el}><option value="">Selecione...</option>{veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} — {v.modelo}</option>)}</select></div></div>
-              <div className="form-row"><div className="form-group"><label>Cliente *</label><input ref={el => af.current.cliente = el} /></div><div className="form-group"><label>Contato</label><input ref={el => af.current.contato = el} placeholder="(85) 9 9999-9999" /></div></div>
-              <div className="form-row"><div className="form-group"><label>Duração (h)</label><input ref={el => af.current.duracao = el} type="number" step="0.5" /></div><div className="form-group"><label>Valor (R$) *</label><input ref={el => af.current.valor = el} type="number" /></div></div>
-              <div className="form-row"><div className="form-group"><label>Pagamento</label><select ref={el => af.current.pagamento = el}><option value="PIX">PIX</option><option value="DINHEIRO">Dinheiro</option><option value="CARTAO_DEBITO">Cartão Débito</option><option value="CARTAO_CREDITO">Cartão Crédito</option></select></div><div className="form-group"><label>Status</label><select ref={el => af.current.status = el}><option value="CONCLUIDO">Concluído</option><option value="ANDAMENTO">Em andamento</option><option value="CANCELADO">Cancelado</option></select></div></div>
-              <div className="form-group"><label>Rota / Destino</label><input ref={el => af.current.rota = el} /></div>
+              <div className="form-row">
+                <div className="form-group"><label>Data *</label><input ref={setRef(af,'data')} type="date" /></div>
+                <div className="form-group"><label>Veículo *</label><select ref={setRef(af,'veiculo')}><option value="">Selecione...</option>{veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} — {v.modelo}</option>)}</select></div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>Cliente *</label><input ref={setRef(af,'cliente')} /></div>
+                <div className="form-group"><label>Contato</label><input ref={setRef(af,'contato')} placeholder="(85) 9 9999-9999" /></div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>Duração (h)</label><input ref={setRef(af,'duracao')} type="number" step="0.5" /></div>
+                <div className="form-group"><label>Valor (R$) *</label><input ref={setRef(af,'valor')} type="number" /></div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>Pagamento</label><select ref={setRef(af,'pagamento')}><option value="PIX">PIX</option><option value="DINHEIRO">Dinheiro</option><option value="CARTAO_DEBITO">Cartão Débito</option><option value="CARTAO_CREDITO">Cartão Crédito</option></select></div>
+                <div className="form-group"><label>Status</label><select ref={setRef(af,'status')}><option value="CONCLUIDO">Concluído</option><option value="ANDAMENTO">Em andamento</option><option value="CANCELADO">Cancelado</option></select></div>
+              </div>
+              <div className="form-group"><label>Rota / Destino</label><input ref={setRef(af,'rota')} /></div>
             </div>
             <div className="modal-footer"><button className="btn btn-secondary" onClick={() => setModal(null)}>Cancelar</button><button className="btn btn-primary" onClick={saveAluguel} disabled={saving}>{saving ? 'Salvando...' : 'Salvar'}</button></div>
           </div>
@@ -427,11 +395,20 @@ export default function App() {
           <div className="modal">
             <div className="modal-header"><div className="modal-title">{editId ? 'Editar' : 'Registrar'} Manutenção</div><button className="modal-close" onClick={() => setModal(null)}><i className="ti ti-x"></i></button></div>
             <div className="modal-body">
-              <div className="form-row"><div className="form-group"><label>Data *</label><input ref={el => mf.current.data = el} type="date" /></div><div className="form-group"><label>Veículo *</label><select ref={el => mf.current.veiculo = el}><option value="">Selecione...</option>{veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} — {v.modelo}</option>)}</select></div></div>
-              <div className="form-row"><div className="form-group"><label>Tipo *</label><select ref={el => mf.current.tipo = el}><option value="PREVENTIVA">Preventiva</option><option value="CORRETIVA">Corretiva</option></select></div><div className="form-group"><label>Status</label><select ref={el => mf.current.status = el}><option value="CONCLUIDA">Concluída</option><option value="AGENDADA">Agendada</option><option value="ANDAMENTO">Em andamento</option></select></div></div>
-              <div className="form-group"><label>Descrição *</label><textarea ref={el => mf.current.desc = el as any}></textarea></div>
-              <div className="form-row"><div className="form-group"><label>Oficina</label><input ref={el => mf.current.oficina = el} /></div><div className="form-group"><label>Custo (R$)</label><input ref={el => mf.current.custo = el} type="number" /></div></div>
-              <div className="form-group"><label>Próxima revisão</label><input ref={el => mf.current.proxima = el} placeholder="3000 km ou 01/06/2025" /></div>
+              <div className="form-row">
+                <div className="form-group"><label>Data *</label><input ref={setRef(mf,'data')} type="date" /></div>
+                <div className="form-group"><label>Veículo *</label><select ref={setRef(mf,'veiculo')}><option value="">Selecione...</option>{veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} — {v.modelo}</option>)}</select></div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>Tipo *</label><select ref={setRef(mf,'tipo')}><option value="PREVENTIVA">Preventiva</option><option value="CORRETIVA">Corretiva</option></select></div>
+                <div className="form-group"><label>Status</label><select ref={setRef(mf,'status')}><option value="CONCLUIDA">Concluída</option><option value="AGENDADA">Agendada</option><option value="ANDAMENTO">Em andamento</option></select></div>
+              </div>
+              <div className="form-group"><label>Descrição *</label><textarea ref={setRef(mf,'desc')}></textarea></div>
+              <div className="form-row">
+                <div className="form-group"><label>Oficina</label><input ref={setRef(mf,'oficina')} /></div>
+                <div className="form-group"><label>Custo (R$)</label><input ref={setRef(mf,'custo')} type="number" /></div>
+              </div>
+              <div className="form-group"><label>Próxima revisão</label><input ref={setRef(mf,'proxima')} placeholder="3000 km ou 01/06/2025" /></div>
             </div>
             <div className="modal-footer"><button className="btn btn-secondary" onClick={() => setModal(null)}>Cancelar</button><button className="btn btn-primary" onClick={saveManutencao} disabled={saving}>{saving ? 'Salvando...' : 'Salvar'}</button></div>
           </div>
@@ -443,9 +420,15 @@ export default function App() {
           <div className="modal">
             <div className="modal-header"><div className="modal-title">{editId ? 'Editar' : 'Registrar'} Despesa</div><button className="modal-close" onClick={() => setModal(null)}><i className="ti ti-x"></i></button></div>
             <div className="modal-body">
-              <div className="form-row"><div className="form-group"><label>Data *</label><input ref={el => df.current.data = el} type="date" /></div><div className="form-group"><label>Categoria</label><select ref={el => df.current.categoria = el}><option value="COMBUSTIVEL">Combustível</option><option value="SEGURO">Seguro</option><option value="LICENCIAMENTO">Licenciamento</option><option value="PONTO">Ponto/Aluguel</option><option value="MARKETING">Marketing</option><option value="PESSOAL">Pessoal</option><option value="EQUIPAMENTO">Equipamento</option><option value="OUTROS">Outros</option></select></div></div>
-              <div className="form-group"><label>Descrição *</label><input ref={el => df.current.desc = el} /></div>
-              <div className="form-row"><div className="form-group"><label>Valor (R$) *</label><input ref={el => df.current.valor = el} type="number" /></div><div className="form-group"><label>Veículo (se aplicável)</label><select ref={el => df.current.veiculo = el}><option value="">Geral</option>{veiculos.map(v => <option key={v.id} value={v.id}>{v.placa}</option>)}</select></div></div>
+              <div className="form-row">
+                <div className="form-group"><label>Data *</label><input ref={setRef(df,'data')} type="date" /></div>
+                <div className="form-group"><label>Categoria</label><select ref={setRef(df,'categoria')}><option value="COMBUSTIVEL">Combustível</option><option value="SEGURO">Seguro</option><option value="LICENCIAMENTO">Licenciamento</option><option value="PONTO">Ponto/Aluguel</option><option value="MARKETING">Marketing</option><option value="PESSOAL">Pessoal</option><option value="EQUIPAMENTO">Equipamento</option><option value="OUTROS">Outros</option></select></div>
+              </div>
+              <div className="form-group"><label>Descrição *</label><input ref={setRef(df,'desc')} /></div>
+              <div className="form-row">
+                <div className="form-group"><label>Valor (R$) *</label><input ref={setRef(df,'valor')} type="number" /></div>
+                <div className="form-group"><label>Veículo (se aplicável)</label><select ref={setRef(df,'veiculo')}><option value="">Geral</option>{veiculos.map(v => <option key={v.id} value={v.id}>{v.placa}</option>)}</select></div>
+              </div>
             </div>
             <div className="modal-footer"><button className="btn btn-secondary" onClick={() => setModal(null)}>Cancelar</button><button className="btn btn-primary" onClick={saveDespesa} disabled={saving}>{saving ? 'Salvando...' : 'Salvar'}</button></div>
           </div>
