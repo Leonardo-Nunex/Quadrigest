@@ -7,7 +7,6 @@ type Manutencao = { id: string; data: string; veiculoId: string; veiculo?: { pla
 type Lancamento = { id: string; data: string; descricao: string; categoria: string; tipo: string; valor: number; veiculoId?: string; aluguelId?: string; manutencaoId?: string }
 type Metricas = { totalVeiculos: number; veiculosDisponiveis: number; totalAlugueis: number; alugueisAndamento: number; totalReceitas: number; totalDespesas: number; lucro: number; custoAquisicao: number; roi: number; ticketMedio: number; totalManutencoes: number; manutencoesAgendadas: number }
 type DashData = { veiculos: Veiculo[]; alugueis: Aluguel[]; manutencoes: Manutencao[]; lancamentos: Lancamento[]; metricas: Metricas }
-type FormRef = Record<string, HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null>
 
 const BRL = (v: number) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
 const fmtDate = (d: string) => { if (!d) return '—'; return new Date(d).toLocaleDateString('pt-BR') }
@@ -30,11 +29,6 @@ function Toast({ msg, err }: { msg: string; err?: boolean }) {
   return <div className={`toast${err ? ' error' : ''}`}><i className={`ti ti-${err ? 'alert-circle' : 'circle-check'}`}></i>{msg}</div>
 }
 
-// helper para setar ref sem retornar valor (corrige erro de tipo do TypeScript)
-function setRef(refs: React.MutableRefObject<FormRef>, key: string) {
-  return (el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null) => { refs.current[key] = el }
-}
-
 export default function App() {
   const [page, setPage] = useState('dashboard')
   const [data, setData] = useState<DashData | null>(null)
@@ -47,10 +41,43 @@ export default function App() {
   const [editId, setEditId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
-  const vf = useRef<FormRef>({})
-  const af = useRef<FormRef>({})
-  const mf = useRef<FormRef>({})
-  const df = useRef<FormRef>({})
+  // refs veículo
+  const vPlaca = useRef<HTMLInputElement>(null)
+  const vModelo = useRef<HTMLInputElement>(null)
+  const vAno = useRef<HTMLInputElement>(null)
+  const vCor = useRef<HTMLInputElement>(null)
+  const vCusto = useRef<HTMLInputElement>(null)
+  const vChassi = useRef<HTMLInputElement>(null)
+  const vStatus = useRef<HTMLSelectElement>(null)
+  const vObs = useRef<HTMLTextAreaElement>(null)
+
+  // refs aluguel
+  const aData = useRef<HTMLInputElement>(null)
+  const aVeiculo = useRef<HTMLSelectElement>(null)
+  const aCliente = useRef<HTMLInputElement>(null)
+  const aContato = useRef<HTMLInputElement>(null)
+  const aDuracao = useRef<HTMLInputElement>(null)
+  const aValor = useRef<HTMLInputElement>(null)
+  const aPagamento = useRef<HTMLSelectElement>(null)
+  const aStatus = useRef<HTMLSelectElement>(null)
+  const aRota = useRef<HTMLInputElement>(null)
+
+  // refs manutenção
+  const mData = useRef<HTMLInputElement>(null)
+  const mVeiculo = useRef<HTMLSelectElement>(null)
+  const mTipo = useRef<HTMLSelectElement>(null)
+  const mStatus = useRef<HTMLSelectElement>(null)
+  const mDesc = useRef<HTMLTextAreaElement>(null)
+  const mOficina = useRef<HTMLInputElement>(null)
+  const mCusto = useRef<HTMLInputElement>(null)
+  const mProxima = useRef<HTMLInputElement>(null)
+
+  // refs despesa
+  const dData = useRef<HTMLInputElement>(null)
+  const dCategoria = useRef<HTMLSelectElement>(null)
+  const dDesc = useRef<HTMLInputElement>(null)
+  const dValor = useRef<HTMLInputElement>(null)
+  const dVeiculo = useRef<HTMLSelectElement>(null)
 
   const showToast = (msg: string, err = false) => { setToast({ msg, err }); setTimeout(() => setToast(null), 3000) }
 
@@ -60,7 +87,7 @@ export default function App() {
       const res = await fetch('/api/dashboard')
       if (!res.ok) throw new Error()
       setData(await res.json())
-    } catch { showToast('Erro ao carregar dados. Verifique a conexão com o banco.', true) }
+    } catch { showToast('Erro ao carregar dados.', true) }
     finally { setLoading(false) }
   }, [])
 
@@ -95,8 +122,8 @@ export default function App() {
     return json
   }
 
-  const getVal = (refs: React.MutableRefObject<FormRef>, key: string) => refs.current[key]?.value || ''
-  const setVal = (refs: React.MutableRefObject<FormRef>, key: string, val: string) => { if (refs.current[key]) refs.current[key]!.value = val }
+  const g = (ref: React.RefObject<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => ref.current?.value || ''
+  const s = (ref: React.RefObject<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>, val: string) => { if (ref.current) ref.current.value = val }
 
   function openModal(type: string, id?: string) {
     setModal(type); setEditId(id || null)
@@ -108,55 +135,52 @@ export default function App() {
     }, 10)
   }
 
+  const today = () => new Date().toISOString().split('T')[0]
+
   function clearForm(type: string) {
-    const today = new Date().toISOString().split('T')[0]
-    if (type === 'veiculo') { ['placa','modelo','ano','cor','custo','chassi','obs'].forEach(k => setVal(vf, k, '')); setVal(vf, 'status', 'DISPONIVEL') }
-    if (type === 'aluguel') { ['cliente','contato','duracao','valor','rota','obs'].forEach(k => setVal(af, k, '')); setVal(af, 'data', today); setVal(af, 'veiculo', ''); setVal(af, 'pagamento', 'PIX'); setVal(af, 'status', 'CONCLUIDO') }
-    if (type === 'manutencao') { ['desc','custo','oficina','proxima'].forEach(k => setVal(mf, k, '')); setVal(mf, 'data', today); setVal(mf, 'veiculo', ''); setVal(mf, 'tipo', 'PREVENTIVA'); setVal(mf, 'status', 'CONCLUIDA') }
-    if (type === 'despesa') { ['desc','valor'].forEach(k => setVal(df, k, '')); setVal(df, 'data', today); setVal(df, 'categoria', 'COMBUSTIVEL'); setVal(df, 'veiculo', '') }
+    if (type === 'veiculo') { [vPlaca,vModelo,vAno,vCor,vCusto,vChassi].forEach(r => s(r,'')); s(vStatus,'DISPONIVEL'); s(vObs,'') }
+    if (type === 'aluguel') { [aCliente,aContato,aDuracao,aValor,aRota].forEach(r => s(r,'')); s(aData,today()); s(aVeiculo,''); s(aPagamento,'PIX'); s(aStatus,'CONCLUIDO') }
+    if (type === 'manutencao') { [mDesc,mOficina,mCusto,mProxima].forEach(r => s(r,'')); s(mData,today()); s(mVeiculo,''); s(mTipo,'PREVENTIVA'); s(mStatus,'CONCLUIDA') }
+    if (type === 'despesa') { [dDesc,dValor].forEach(r => s(r,'')); s(dData,today()); s(dCategoria,'COMBUSTIVEL'); s(dVeiculo,'') }
   }
 
   function fillForm(type: string, rec: any) {
-    if (type === 'veiculo') { ['placa','modelo','ano','cor','custo','chassi','obs'].forEach(k => setVal(vf, k, String(rec[k] || ''))); setVal(vf, 'status', rec.status) }
-    if (type === 'aluguel') { setVal(af, 'data', isoDate(rec.data)); ['cliente','contato','duracao','valor','rota','obs'].forEach(k => setVal(af, k, String(rec[k] || ''))); setVal(af, 'veiculo', rec.veiculoId); setVal(af, 'pagamento', rec.pagamento); setVal(af, 'status', rec.status) }
-    if (type === 'manutencao') { setVal(mf, 'data', isoDate(rec.data)); ['desc','custo','oficina','proxima'].forEach(k => setVal(mf, k, String(rec[k] || ''))); setVal(mf, 'veiculo', rec.veiculoId); setVal(mf, 'tipo', rec.tipo); setVal(mf, 'status', rec.status) }
-    if (type === 'despesa') { setVal(df, 'data', isoDate(rec.data)); ['desc','valor'].forEach(k => setVal(df, k, String(rec[k] || ''))); setVal(df, 'categoria', rec.categoria); setVal(df, 'veiculo', rec.veiculoId || '') }
+    if (type === 'veiculo') { s(vPlaca,rec.placa||''); s(vModelo,rec.modelo||''); s(vAno,String(rec.ano||'')); s(vCor,rec.cor||''); s(vCusto,String(rec.custo||'')); s(vChassi,rec.chassi||''); s(vStatus,rec.status); s(vObs,rec.obs||'') }
+    if (type === 'aluguel') { s(aData,isoDate(rec.data)); s(aVeiculo,rec.veiculoId); s(aCliente,rec.cliente||''); s(aContato,rec.contato||''); s(aDuracao,String(rec.duracao||'')); s(aValor,String(rec.valor||'')); s(aPagamento,rec.pagamento); s(aStatus,rec.status); s(aRota,rec.rota||'') }
+    if (type === 'manutencao') { s(mData,isoDate(rec.data)); s(mVeiculo,rec.veiculoId); s(mTipo,rec.tipo); s(mStatus,rec.status); s(mDesc,rec.descricao||''); s(mOficina,rec.oficina||''); s(mCusto,String(rec.custo||'')); s(mProxima,rec.proxima||'') }
+    if (type === 'despesa') { s(dData,isoDate(rec.data)); s(dDesc,rec.descricao||''); s(dCategoria,rec.categoria); s(dValor,String(rec.valor||'')); s(dVeiculo,rec.veiculoId||'') }
   }
 
   async function saveVeiculo() {
-    const body = { placa: getVal(vf,'placa'), modelo: getVal(vf,'modelo'), ano: getVal(vf,'ano'), cor: getVal(vf,'cor'), custo: getVal(vf,'custo'), chassi: getVal(vf,'chassi'), status: getVal(vf,'status'), obs: getVal(vf,'obs') }
+    const body = { placa: g(vPlaca), modelo: g(vModelo), ano: g(vAno), cor: g(vCor), custo: g(vCusto), chassi: g(vChassi), status: g(vStatus), obs: g(vObs) }
     if (!body.placa || !body.modelo) { showToast('Placa e modelo são obrigatórios', true); return }
     setSaving(true)
     try { editId ? await apiCall(`/api/veiculos/${editId}`, 'PUT', body) : await apiCall('/api/veiculos', 'POST', body); setModal(null); await loadData(); showToast('Veículo salvo!') }
-    catch (e: any) { showToast(e.message, true) }
-    setSaving(false)
+    catch (e: any) { showToast(e.message, true) } finally { setSaving(false) }
   }
 
   async function saveAluguel() {
-    const body = { data: getVal(af,'data'), veiculoId: getVal(af,'veiculo'), cliente: getVal(af,'cliente'), contato: getVal(af,'contato'), duracao: getVal(af,'duracao'), valor: getVal(af,'valor'), pagamento: getVal(af,'pagamento'), status: getVal(af,'status'), rota: getVal(af,'rota'), obs: getVal(af,'obs') }
+    const body = { data: g(aData), veiculoId: g(aVeiculo), cliente: g(aCliente), contato: g(aContato), duracao: g(aDuracao), valor: g(aValor), pagamento: g(aPagamento), status: g(aStatus), rota: g(aRota) }
     if (!body.data || !body.veiculoId || !body.cliente || !body.valor) { showToast('Preencha os campos obrigatórios', true); return }
     setSaving(true)
     try { editId ? await apiCall(`/api/alugueis/${editId}`, 'PUT', body) : await apiCall('/api/alugueis', 'POST', body); setModal(null); await loadData(); showToast('Aluguel registrado!') }
-    catch (e: any) { showToast(e.message, true) }
-    setSaving(false)
+    catch (e: any) { showToast(e.message, true) } finally { setSaving(false) }
   }
 
   async function saveManutencao() {
-    const body = { data: getVal(mf,'data'), veiculoId: getVal(mf,'veiculo'), tipo: getVal(mf,'tipo'), descricao: getVal(mf,'desc'), custo: getVal(mf,'custo'), oficina: getVal(mf,'oficina'), proxima: getVal(mf,'proxima'), status: getVal(mf,'status') }
+    const body = { data: g(mData), veiculoId: g(mVeiculo), tipo: g(mTipo), descricao: g(mDesc), custo: g(mCusto), oficina: g(mOficina), proxima: g(mProxima), status: g(mStatus) }
     if (!body.data || !body.veiculoId || !body.descricao) { showToast('Preencha os campos obrigatórios', true); return }
     setSaving(true)
     try { editId ? await apiCall(`/api/manutencoes/${editId}`, 'PUT', body) : await apiCall('/api/manutencoes', 'POST', body); setModal(null); await loadData(); showToast('Manutenção registrada!') }
-    catch (e: any) { showToast(e.message, true) }
-    setSaving(false)
+    catch (e: any) { showToast(e.message, true) } finally { setSaving(false) }
   }
 
   async function saveDespesa() {
-    const body = { data: getVal(df,'data'), descricao: getVal(df,'desc'), categoria: getVal(df,'categoria'), valor: getVal(df,'valor'), veiculoId: getVal(df,'veiculo') || null }
+    const body = { data: g(dData), descricao: g(dDesc), categoria: g(dCategoria), valor: g(dValor), veiculoId: g(dVeiculo) || null }
     if (!body.data || !body.descricao || !body.valor) { showToast('Preencha os campos obrigatórios', true); return }
     setSaving(true)
     try { editId ? await apiCall(`/api/lancamentos/${editId}`, 'PUT', body) : await apiCall('/api/lancamentos', 'POST', body); setModal(null); await loadData(); showToast('Despesa registrada!') }
-    catch (e: any) { showToast(e.message, true) }
-    setSaving(false)
+    catch (e: any) { showToast(e.message, true) } finally { setSaving(false) }
   }
 
   async function deleteItem(store: string, id: string) {
@@ -253,7 +277,7 @@ export default function App() {
                     <div className="card"><div className="table-wrapper"><table>
                       <thead><tr><th>Placa</th><th>Modelo</th><th>Ano</th><th>Cor</th><th>Custo aquisição</th><th>Status</th><th>Ações</th></tr></thead>
                       <tbody>{veiculos.length === 0 ? <tr><td colSpan={7}><div className="empty-state"><i className="ti ti-car-off"></i><p>Nenhum veículo cadastrado</p></div></td></tr> : veiculos.map(v => (
-                        <tr key={v.id}><td className="fw-semibold nowrap">{v.placa}</td><td>{v.modelo}</td><td>{v.ano || '—'}</td><td>{v.cor || '—'}</td><td className="nowrap">{BRL(v.custo)}</td><td><Badge s={v.status} /></td>
+                        <tr key={v.id}><td className="fw-semibold nowrap">{v.placa}</td><td>{v.modelo}</td><td>{v.ano||'—'}</td><td>{v.cor||'—'}</td><td className="nowrap">{BRL(v.custo)}</td><td><Badge s={v.status} /></td>
                         <td><div className="td-actions"><button className="btn btn-secondary btn-sm btn-icon" onClick={() => openModal('veiculo', v.id)}><i className="ti ti-edit"></i></button><button className="btn btn-danger btn-sm btn-icon" onClick={() => deleteItem('veiculos', v.id)}><i className="ti ti-trash"></i></button></div></td></tr>
                       ))}</tbody>
                     </table></div></div>
@@ -272,7 +296,7 @@ export default function App() {
                     <div className="card"><div className="table-wrapper"><table>
                       <thead><tr><th>Data</th><th>Veículo</th><th>Cliente</th><th>Duração</th><th>Valor</th><th>Pagamento</th><th>Status</th><th>Ações</th></tr></thead>
                       <tbody>{alugueis.length === 0 ? <tr><td colSpan={8}><div className="empty-state"><i className="ti ti-route-off"></i><p>Nenhum aluguel registrado</p></div></td></tr> : alugueis.map(a => (
-                        <tr key={a.id}><td className="nowrap">{fmtDate(a.data)}</td><td className="nowrap">{a.veiculo ? `${a.veiculo.placa} — ${a.veiculo.modelo}` : '—'}</td><td>{a.cliente}</td><td className="nowrap">{a.duracao ? `${a.duracao}h` : '—'}</td><td className="nowrap fw-semibold">{BRL(a.valor)}</td><td>{pagMap[a.pagamento] || a.pagamento}</td><td><Badge s={a.status} /></td>
+                        <tr key={a.id}><td className="nowrap">{fmtDate(a.data)}</td><td className="nowrap">{a.veiculo ? `${a.veiculo.placa} — ${a.veiculo.modelo}` : '—'}</td><td>{a.cliente}</td><td className="nowrap">{a.duracao ? `${a.duracao}h` : '—'}</td><td className="nowrap fw-semibold">{BRL(a.valor)}</td><td>{pagMap[a.pagamento]||a.pagamento}</td><td><Badge s={a.status} /></td>
                         <td><div className="td-actions"><button className="btn btn-secondary btn-sm btn-icon" onClick={() => openModal('aluguel', a.id)}><i className="ti ti-edit"></i></button><button className="btn btn-danger btn-sm btn-icon" onClick={() => deleteItem('alugueis', a.id)}><i className="ti ti-trash"></i></button></div></td></tr>
                       ))}</tbody>
                     </table></div></div>
@@ -282,11 +306,11 @@ export default function App() {
                 {page === 'manutencoes' && (
                   <div>
                     <div className="section-header"><div><div className="section-title">Manutenções</div><div className="section-subtitle">Controle preventivo e corretivo</div></div><button className="btn btn-primary" onClick={() => openModal('manutencao')}><i className="ti ti-plus"></i> Nova manutenção</button></div>
-                    <div className="tab-bar">{['TODAS','PREVENTIVA','CORRETIVA','AGENDADA'].map(f => <button key={f} className={`tab-btn${manutFilter === f ? ' active' : ''}`} onClick={() => setManutFilter(f)}>{f === 'TODAS' ? 'Todas' : f === 'PREVENTIVA' ? 'Preventivas' : f === 'CORRETIVA' ? 'Corretivas' : 'Agendadas'}</button>)}</div>
+                    <div className="tab-bar">{['TODAS','PREVENTIVA','CORRETIVA','AGENDADA'].map(f => <button key={f} className={`tab-btn${manutFilter === f ? ' active' : ''}`} onClick={() => setManutFilter(f)}>{f==='TODAS'?'Todas':f==='PREVENTIVA'?'Preventivas':f==='CORRETIVA'?'Corretivas':'Agendadas'}</button>)}</div>
                     <div className="card"><div className="table-wrapper"><table>
                       <thead><tr><th>Data</th><th>Veículo</th><th>Tipo</th><th>Descrição</th><th>Oficina</th><th>Custo</th><th>Status</th><th>Ações</th></tr></thead>
                       <tbody>{manutFilt.length === 0 ? <tr><td colSpan={8}><div className="empty-state"><i className="ti ti-tool-off"></i><p>Nenhuma manutenção registrada</p></div></td></tr> : manutFilt.map(mn => (
-                        <tr key={mn.id}><td className="nowrap">{fmtDate(mn.data)}</td><td className="nowrap">{mn.veiculo ? `${mn.veiculo.placa} — ${mn.veiculo.modelo}` : '—'}</td><td><Badge s={mn.tipo} /></td><td>{mn.descricao}</td><td>{mn.oficina || '—'}</td><td className="nowrap">{BRL(mn.custo)}</td><td><Badge s={mn.status} /></td>
+                        <tr key={mn.id}><td className="nowrap">{fmtDate(mn.data)}</td><td className="nowrap">{mn.veiculo ? `${mn.veiculo.placa} — ${mn.veiculo.modelo}` : '—'}</td><td><Badge s={mn.tipo} /></td><td>{mn.descricao}</td><td>{mn.oficina||'—'}</td><td className="nowrap">{BRL(mn.custo)}</td><td><Badge s={mn.status} /></td>
                         <td><div className="td-actions"><button className="btn btn-secondary btn-sm btn-icon" onClick={() => openModal('manutencao', mn.id)}><i className="ti ti-edit"></i></button><button className="btn btn-danger btn-sm btn-icon" onClick={() => deleteItem('manutencoes', mn.id)}><i className="ti ti-trash"></i></button></div></td></tr>
                       ))}</tbody>
                     </table></div></div>
@@ -301,11 +325,11 @@ export default function App() {
                       <div className="metric-card metric-accent-red"><div className="metric-label">Despesas</div><div className="metric-value metric-down">{BRL(m.totalDespesas)}</div></div>
                       <div className="metric-card metric-accent-blue"><div className="metric-label">Lucro líquido</div><div className={`metric-value ${m.lucro >= 0 ? 'metric-up' : 'metric-down'}`}>{BRL(m.lucro)}</div></div>
                     </div>
-                    <div className="tab-bar">{['TODAS','RECEITA','DESPESA'].map(f => <button key={f} className={`tab-btn${finFilter === f ? ' active' : ''}`} onClick={() => setFinFilter(f)}>{f === 'TODAS' ? 'Todas' : f === 'RECEITA' ? 'Receitas' : 'Despesas'}</button>)}</div>
+                    <div className="tab-bar">{['TODAS','RECEITA','DESPESA'].map(f => <button key={f} className={`tab-btn${finFilter === f ? ' active' : ''}`} onClick={() => setFinFilter(f)}>{f==='TODAS'?'Todas':f==='RECEITA'?'Receitas':'Despesas'}</button>)}</div>
                     <div className="card"><div className="table-wrapper"><table>
                       <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Tipo</th><th>Valor</th><th>Ações</th></tr></thead>
                       <tbody>{lancFilt.length === 0 ? <tr><td colSpan={6}><div className="empty-state"><i className="ti ti-coin-off"></i><p>Nenhuma movimentação</p></div></td></tr> : lancFilt.map(l => (
-                        <tr key={l.id}><td className="nowrap">{fmtDate(l.data)}</td><td>{l.descricao}</td><td>{catMap[l.categoria] || l.categoria}</td><td><Badge s={l.tipo} /></td><td className={`nowrap fw-semibold ${l.tipo === 'RECEITA' ? 'text-green' : 'text-red'}`}>{l.tipo === 'RECEITA' ? '+' : '-'} {BRL(l.valor)}</td>
+                        <tr key={l.id}><td className="nowrap">{fmtDate(l.data)}</td><td>{l.descricao}</td><td>{catMap[l.categoria]||l.categoria}</td><td><Badge s={l.tipo} /></td><td className={`nowrap fw-semibold ${l.tipo === 'RECEITA' ? 'text-green' : 'text-red'}`}>{l.tipo==='RECEITA'?'+':'-'} {BRL(l.valor)}</td>
                         <td><div className="td-actions">{!l.aluguelId && !l.manutencaoId && <button className="btn btn-secondary btn-sm btn-icon" onClick={() => openModal('despesa', l.id)}><i className="ti ti-edit"></i></button>}<button className="btn btn-danger btn-sm btn-icon" onClick={() => deleteItem('lancamentos', l.id)}><i className="ti ti-trash"></i></button></div></td></tr>
                       ))}</tbody>
                     </table></div></div>
@@ -336,26 +360,25 @@ export default function App() {
         </div>
       </div>
 
-      {/* MODAIS */}
       {modal === 'veiculo' && (
         <div className="modal-overlay open" onClick={e => e.target === e.currentTarget && setModal(null)}>
           <div className="modal">
             <div className="modal-header"><div className="modal-title">{editId ? 'Editar' : 'Cadastrar'} Veículo</div><button className="modal-close" onClick={() => setModal(null)}><i className="ti ti-x"></i></button></div>
             <div className="modal-body">
               <div className="form-row">
-                <div className="form-group"><label>Placa *</label><input ref={setRef(vf,'placa')} placeholder="ABC-1234" /></div>
-                <div className="form-group"><label>Modelo *</label><input ref={setRef(vf,'modelo')} placeholder="Quadriciclo Sport 150" /></div>
+                <div className="form-group"><label>Placa *</label><input ref={vPlaca} placeholder="ABC-1234" /></div>
+                <div className="form-group"><label>Modelo *</label><input ref={vModelo} placeholder="Quadriciclo Sport 150" /></div>
               </div>
               <div className="form-row">
-                <div className="form-group"><label>Ano</label><input ref={setRef(vf,'ano')} type="number" placeholder="2024" /></div>
-                <div className="form-group"><label>Cor</label><input ref={setRef(vf,'cor')} placeholder="Vermelho" /></div>
+                <div className="form-group"><label>Ano</label><input ref={vAno} type="number" placeholder="2024" /></div>
+                <div className="form-group"><label>Cor</label><input ref={vCor} placeholder="Vermelho" /></div>
               </div>
               <div className="form-row">
-                <div className="form-group"><label>Custo de aquisição (R$)</label><input ref={setRef(vf,'custo')} type="number" placeholder="8000" /></div>
-                <div className="form-group"><label>Status</label><select ref={setRef(vf,'status')}><option value="DISPONIVEL">Disponível</option><option value="ALUGADO">Alugado</option><option value="MANUTENCAO">Em manutenção</option><option value="INATIVO">Inativo</option></select></div>
+                <div className="form-group"><label>Custo de aquisição (R$)</label><input ref={vCusto} type="number" placeholder="8000" /></div>
+                <div className="form-group"><label>Status</label><select ref={vStatus}><option value="DISPONIVEL">Disponível</option><option value="ALUGADO">Alugado</option><option value="MANUTENCAO">Em manutenção</option><option value="INATIVO">Inativo</option></select></div>
               </div>
-              <div className="form-group"><label>Chassi</label><input ref={setRef(vf,'chassi')} /></div>
-              <div className="form-group"><label>Observações</label><textarea ref={setRef(vf,'obs')}></textarea></div>
+              <div className="form-group"><label>Chassi</label><input ref={vChassi} /></div>
+              <div className="form-group"><label>Observações</label><textarea ref={vObs}></textarea></div>
             </div>
             <div className="modal-footer"><button className="btn btn-secondary" onClick={() => setModal(null)}>Cancelar</button><button className="btn btn-primary" onClick={saveVeiculo} disabled={saving}>{saving ? 'Salvando...' : 'Salvar'}</button></div>
           </div>
@@ -368,22 +391,22 @@ export default function App() {
             <div className="modal-header"><div className="modal-title">{editId ? 'Editar' : 'Registrar'} Aluguel</div><button className="modal-close" onClick={() => setModal(null)}><i className="ti ti-x"></i></button></div>
             <div className="modal-body">
               <div className="form-row">
-                <div className="form-group"><label>Data *</label><input ref={setRef(af,'data')} type="date" /></div>
-                <div className="form-group"><label>Veículo *</label><select ref={setRef(af,'veiculo')}><option value="">Selecione...</option>{veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} — {v.modelo}</option>)}</select></div>
+                <div className="form-group"><label>Data *</label><input ref={aData} type="date" /></div>
+                <div className="form-group"><label>Veículo *</label><select ref={aVeiculo}><option value="">Selecione...</option>{veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} — {v.modelo}</option>)}</select></div>
               </div>
               <div className="form-row">
-                <div className="form-group"><label>Cliente *</label><input ref={setRef(af,'cliente')} /></div>
-                <div className="form-group"><label>Contato</label><input ref={setRef(af,'contato')} placeholder="(85) 9 9999-9999" /></div>
+                <div className="form-group"><label>Cliente *</label><input ref={aCliente} /></div>
+                <div className="form-group"><label>Contato</label><input ref={aContato} placeholder="(85) 9 9999-9999" /></div>
               </div>
               <div className="form-row">
-                <div className="form-group"><label>Duração (h)</label><input ref={setRef(af,'duracao')} type="number" step="0.5" /></div>
-                <div className="form-group"><label>Valor (R$) *</label><input ref={setRef(af,'valor')} type="number" /></div>
+                <div className="form-group"><label>Duração (h)</label><input ref={aDuracao} type="number" step="0.5" /></div>
+                <div className="form-group"><label>Valor (R$) *</label><input ref={aValor} type="number" /></div>
               </div>
               <div className="form-row">
-                <div className="form-group"><label>Pagamento</label><select ref={setRef(af,'pagamento')}><option value="PIX">PIX</option><option value="DINHEIRO">Dinheiro</option><option value="CARTAO_DEBITO">Cartão Débito</option><option value="CARTAO_CREDITO">Cartão Crédito</option></select></div>
-                <div className="form-group"><label>Status</label><select ref={setRef(af,'status')}><option value="CONCLUIDO">Concluído</option><option value="ANDAMENTO">Em andamento</option><option value="CANCELADO">Cancelado</option></select></div>
+                <div className="form-group"><label>Pagamento</label><select ref={aPagamento}><option value="PIX">PIX</option><option value="DINHEIRO">Dinheiro</option><option value="CARTAO_DEBITO">Cartão Débito</option><option value="CARTAO_CREDITO">Cartão Crédito</option></select></div>
+                <div className="form-group"><label>Status</label><select ref={aStatus}><option value="CONCLUIDO">Concluído</option><option value="ANDAMENTO">Em andamento</option><option value="CANCELADO">Cancelado</option></select></div>
               </div>
-              <div className="form-group"><label>Rota / Destino</label><input ref={setRef(af,'rota')} /></div>
+              <div className="form-group"><label>Rota / Destino</label><input ref={aRota} /></div>
             </div>
             <div className="modal-footer"><button className="btn btn-secondary" onClick={() => setModal(null)}>Cancelar</button><button className="btn btn-primary" onClick={saveAluguel} disabled={saving}>{saving ? 'Salvando...' : 'Salvar'}</button></div>
           </div>
@@ -396,19 +419,19 @@ export default function App() {
             <div className="modal-header"><div className="modal-title">{editId ? 'Editar' : 'Registrar'} Manutenção</div><button className="modal-close" onClick={() => setModal(null)}><i className="ti ti-x"></i></button></div>
             <div className="modal-body">
               <div className="form-row">
-                <div className="form-group"><label>Data *</label><input ref={setRef(mf,'data')} type="date" /></div>
-                <div className="form-group"><label>Veículo *</label><select ref={setRef(mf,'veiculo')}><option value="">Selecione...</option>{veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} — {v.modelo}</option>)}</select></div>
+                <div className="form-group"><label>Data *</label><input ref={mData} type="date" /></div>
+                <div className="form-group"><label>Veículo *</label><select ref={mVeiculo}><option value="">Selecione...</option>{veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} — {v.modelo}</option>)}</select></div>
               </div>
               <div className="form-row">
-                <div className="form-group"><label>Tipo *</label><select ref={setRef(mf,'tipo')}><option value="PREVENTIVA">Preventiva</option><option value="CORRETIVA">Corretiva</option></select></div>
-                <div className="form-group"><label>Status</label><select ref={setRef(mf,'status')}><option value="CONCLUIDA">Concluída</option><option value="AGENDADA">Agendada</option><option value="ANDAMENTO">Em andamento</option></select></div>
+                <div className="form-group"><label>Tipo *</label><select ref={mTipo}><option value="PREVENTIVA">Preventiva</option><option value="CORRETIVA">Corretiva</option></select></div>
+                <div className="form-group"><label>Status</label><select ref={mStatus}><option value="CONCLUIDA">Concluída</option><option value="AGENDADA">Agendada</option><option value="ANDAMENTO">Em andamento</option></select></div>
               </div>
-              <div className="form-group"><label>Descrição *</label><textarea ref={setRef(mf,'desc')}></textarea></div>
+              <div className="form-group"><label>Descrição *</label><textarea ref={mDesc}></textarea></div>
               <div className="form-row">
-                <div className="form-group"><label>Oficina</label><input ref={setRef(mf,'oficina')} /></div>
-                <div className="form-group"><label>Custo (R$)</label><input ref={setRef(mf,'custo')} type="number" /></div>
+                <div className="form-group"><label>Oficina</label><input ref={mOficina} /></div>
+                <div className="form-group"><label>Custo (R$)</label><input ref={mCusto} type="number" /></div>
               </div>
-              <div className="form-group"><label>Próxima revisão</label><input ref={setRef(mf,'proxima')} placeholder="3000 km ou 01/06/2025" /></div>
+              <div className="form-group"><label>Próxima revisão</label><input ref={mProxima} placeholder="3000 km ou 01/06/2025" /></div>
             </div>
             <div className="modal-footer"><button className="btn btn-secondary" onClick={() => setModal(null)}>Cancelar</button><button className="btn btn-primary" onClick={saveManutencao} disabled={saving}>{saving ? 'Salvando...' : 'Salvar'}</button></div>
           </div>
@@ -421,13 +444,13 @@ export default function App() {
             <div className="modal-header"><div className="modal-title">{editId ? 'Editar' : 'Registrar'} Despesa</div><button className="modal-close" onClick={() => setModal(null)}><i className="ti ti-x"></i></button></div>
             <div className="modal-body">
               <div className="form-row">
-                <div className="form-group"><label>Data *</label><input ref={setRef(df,'data')} type="date" /></div>
-                <div className="form-group"><label>Categoria</label><select ref={setRef(df,'categoria')}><option value="COMBUSTIVEL">Combustível</option><option value="SEGURO">Seguro</option><option value="LICENCIAMENTO">Licenciamento</option><option value="PONTO">Ponto/Aluguel</option><option value="MARKETING">Marketing</option><option value="PESSOAL">Pessoal</option><option value="EQUIPAMENTO">Equipamento</option><option value="OUTROS">Outros</option></select></div>
+                <div className="form-group"><label>Data *</label><input ref={dData} type="date" /></div>
+                <div className="form-group"><label>Categoria</label><select ref={dCategoria}><option value="COMBUSTIVEL">Combustível</option><option value="SEGURO">Seguro</option><option value="LICENCIAMENTO">Licenciamento</option><option value="PONTO">Ponto/Aluguel</option><option value="MARKETING">Marketing</option><option value="PESSOAL">Pessoal</option><option value="EQUIPAMENTO">Equipamento</option><option value="OUTROS">Outros</option></select></div>
               </div>
-              <div className="form-group"><label>Descrição *</label><input ref={setRef(df,'desc')} /></div>
+              <div className="form-group"><label>Descrição *</label><input ref={dDesc} /></div>
               <div className="form-row">
-                <div className="form-group"><label>Valor (R$) *</label><input ref={setRef(df,'valor')} type="number" /></div>
-                <div className="form-group"><label>Veículo (se aplicável)</label><select ref={setRef(df,'veiculo')}><option value="">Geral</option>{veiculos.map(v => <option key={v.id} value={v.id}>{v.placa}</option>)}</select></div>
+                <div className="form-group"><label>Valor (R$) *</label><input ref={dValor} type="number" /></div>
+                <div className="form-group"><label>Veículo (se aplicável)</label><select ref={dVeiculo}><option value="">Geral</option>{veiculos.map(v => <option key={v.id} value={v.id}>{v.placa}</option>)}</select></div>
               </div>
             </div>
             <div className="modal-footer"><button className="btn btn-secondary" onClick={() => setModal(null)}>Cancelar</button><button className="btn btn-primary" onClick={saveDespesa} disabled={saving}>{saving ? 'Salvando...' : 'Salvar'}</button></div>
