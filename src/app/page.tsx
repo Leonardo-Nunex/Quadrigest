@@ -185,7 +185,12 @@ export default function App() {
 
   async function deleteItem(store: string, id: string) {
     if (!confirm('Remover este registro?')) return
-    try { await apiCall(`/api/${store}/${id}`, 'DELETE'); await loadData(); showToast('Registro removido.') }
+    try {
+      await apiCall(`/api/${store}/${id}`, 'DELETE')
+      showToast('Registro removido.')
+      await loadData()
+      setData(d => d ? { ...d } : null)
+    }
     catch (e: any) { showToast(e.message, true) }
   }
 
