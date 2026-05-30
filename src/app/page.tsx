@@ -183,16 +183,29 @@ export default function App() {
     catch (e: any) { showToast(e.message, true) } finally { setSaving(false) }
   }
 
-  async function deleteItem(store: string, id: string) {
-    if (!confirm('Remover este registro?')) return
-    try {
-      await apiCall(`/api/${store}/${id}`, 'DELETE')
-      showToast('Registro removido.')
-      await loadData()
-      setData(d => d ? { ...d } : null)
-    }
-    catch (e: any) { showToast(e.message, true) }
+async function deleteItem(store: string, id: string) {
+  if (!confirm('Remover este registro?')) return
+  try {
+    // Remove da tela imediatamente
+    setData(prev => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        veiculos: store === 'veiculos' ? prev.veiculos.filter(x => x.id !== id) : prev.veiculos,
+        alugueis: store === 'alugueis' ? prev.alugueis.filter(x => x.id !== id) : prev.alugueis,
+        manutencoes: store === 'manutencoes' ? prev.manutencoes.filter(x => x.id !== id) : prev.manutencoes,
+        lancamentos: store === 'lancamentos' ? prev.lancamentos.filter(x => x.id !== id) : prev.lancamentos,
+      }
+    })
+    // Deleta no banco em background
+    await apiCall(`/api/${store}/${id}`, 'DELETE')
+    showToast('Registro removido.')
+    await loadData()
+  } catch (e: any) {
+    showToast(e.message, true)
+    await loadData() // restaura se falhar
   }
+}
 
   const pages = [
     { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard', section: 'Visão Geral' },
