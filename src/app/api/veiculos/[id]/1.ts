@@ -1,3 +1,4 @@
+// src/app/api/veiculos/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
@@ -29,21 +30,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
   try {
-    // Remove lançamentos vinculados a aluguéis e manutenções do veículo
-    const alugueis = await prisma.aluguel.findMany({ where: { veiculoId: params.id }, select: { id: true } })
-    const manutencoes = await prisma.manutencao.findMany({ where: { veiculoId: params.id }, select: { id: true } })
-    
-    await prisma.lancamento.deleteMany({ where: { aluguelId: { in: alugueis.map(a => a.id) } } })
-    await prisma.lancamento.deleteMany({ where: { manutencaoId: { in: manutencoes.map(m => m.id) } } })
-    await prisma.lancamento.deleteMany({ where: { veiculoId: params.id, aluguelId: null, manutencaoId: null } })
-    await prisma.aluguel.deleteMany({ where: { veiculoId: params.id } })
-    await prisma.manutencao.deleteMany({ where: { veiculoId: params.id } })
     await prisma.veiculo.delete({ where: { id: params.id } })
-    
     return NextResponse.json({ ok: true })
   } catch (e: any) {
     if (e.code === 'P2025') return NextResponse.json({ error: 'Veículo não encontrado' }, { status: 404 })
-    console.error('DELETE veiculo error:', e)
     return NextResponse.json({ error: 'Erro ao excluir veículo' }, { status: 500 })
   }
 }

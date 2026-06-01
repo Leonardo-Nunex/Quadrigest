@@ -1,3 +1,4 @@
+// src/app/api/alugueis/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
@@ -23,6 +24,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       include: { veiculo: { select: { placa: true, modelo: true } } }
     })
 
+    // Atualiza lançamento vinculado se existir
     const lanc = await prisma.lancamento.findFirst({ where: { aluguelId: params.id } })
     if (lanc) {
       await prisma.lancamento.update({
@@ -44,12 +46,12 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
   try {
+    // Remove lançamento vinculado primeiro
     await prisma.lancamento.deleteMany({ where: { aluguelId: params.id } })
     await prisma.aluguel.delete({ where: { id: params.id } })
     return NextResponse.json({ ok: true })
   } catch (e: any) {
     if (e.code === 'P2025') return NextResponse.json({ error: 'Aluguel não encontrado' }, { status: 404 })
-    console.error('DELETE aluguel error:', e)
     return NextResponse.json({ error: 'Erro ao excluir aluguel' }, { status: 500 })
   }
 }

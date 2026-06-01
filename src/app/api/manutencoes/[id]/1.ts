@@ -1,3 +1,4 @@
+// src/app/api/manutencoes/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
@@ -21,6 +22,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       include: { veiculo: { select: { placa: true, modelo: true } } }
     })
 
+    // Atualiza lançamento vinculado
     const lanc = await prisma.lancamento.findFirst({ where: { manutencaoId: params.id } })
     if (lanc) {
       await prisma.lancamento.update({
@@ -50,13 +52,11 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
 export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
   try {
-    // Deleta lançamentos vinculados (ignora se não existir)
     await prisma.lancamento.deleteMany({ where: { manutencaoId: params.id } })
     await prisma.manutencao.delete({ where: { id: params.id } })
     return NextResponse.json({ ok: true })
   } catch (e: any) {
     if (e.code === 'P2025') return NextResponse.json({ error: 'Manutenção não encontrada' }, { status: 404 })
-    console.error('DELETE manutencao error:', e)
     return NextResponse.json({ error: 'Erro ao excluir manutenção' }, { status: 500 })
   }
 }
