@@ -273,9 +273,9 @@ export default function App() {
                       <div className="metric-card metric-accent-blue"><div className="metric-label">Em andamento</div><div className="metric-value">{m.alugueisAndamento}</div></div>
                     </div>}
                     <div className="card"><div className="table-wrapper"><table>
-                      <thead><tr><th>Data</th><th>Veículo</th><th>Cliente</th><th>Duração</th><th>Valor</th><th>Pagamento</th><th>Pgto</th><th>Status</th><th>Ações</th></tr></thead>
+                      <thead><tr><th>Data</th><th>Veículo</th><th>Cliente</th><th>Duração</th><th>Valor</th><th>Forma Pgto</th><th>Status Pgto</th><th>Status</th><th>Ações</th></tr></thead>
                       <tbody>{alugueis.length === 0 ? <tr><td colSpan={8}><div className="empty-state"><i className="ti ti-route-off"></i><p>Nenhum aluguel registrado</p></div></td></tr> : alugueis.map(a => (
-                        <tr key={a.id}><td className="nowrap">{fmtDate(a.data)}</td><td className="nowrap">{a.veiculo ? `${a.veiculo.placa} — ${a.veiculo.modelo}` : '—'}</td><td>{a.cliente}</td><td className="nowrap">{a.duracao ? `${a.duracao}h` : '—'}</td><td className="nowrap fw-semibold">{BRL(a.valor)}</td><td>{pagMap[a.pagamento] || a.pagamento}</td><td><Badge s={a.status} /></td>
+                        <tr key={a.id}><td className="nowrap">{fmtDate(a.data)}</td><td className="nowrap">{a.veiculo ? `${a.veiculo.placa} — ${a.veiculo.modelo}` : '—'}</td><td>{a.cliente}</td><td className="nowrap">{a.duracao ? `${a.duracao}h` : '—'}</td><td className="nowrap fw-semibold">{BRL(a.valor)}</td><td>{pagMap[a.pagamento] || a.pagamento}</td><td><Badge s={a.statusPagamento || "PAGO"} /></td><td><Badge s={a.status} /></td>
                         <td><div className="td-actions"><button className="btn btn-secondary btn-sm btn-icon" onClick={() => openModal('aluguel', a.id)}><i className="ti ti-edit"></i></button><button className="btn btn-danger btn-sm btn-icon" onClick={() => deleteItem('alugueis', a.id)}><i className="ti ti-trash"></i></button></div></td></tr>
                       ))}</tbody>
                     </table></div></div>
