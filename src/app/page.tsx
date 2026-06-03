@@ -12,8 +12,14 @@ type FormRef = Record<string, HTMLInputElement | HTMLSelectElement | HTMLTextAre
 
 const BRL = (v: number) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
 const saldoReceber = (a: Pick<Aluguel, 'valor' | 'valorPago'>) => Math.max(Number(a.valor || 0) - Number(a.valorPago || 0), 0)
-const fmtDate = (d: string) => { if (!d) return '—'; return new Date(d).toLocaleDateString('pt-BR') }
-const isoDate = (d: string) => d ? new Date(d).toISOString().split('T')[0] : ''
+const dateOnly = (d?: string) => d ? d.slice(0, 10) : ''
+const fmtDate = (d: string) => {
+  const iso = dateOnly(d)
+  if (!iso) return '—'
+  const [year, month, day] = iso.split('-')
+  return `${day}/${month}/${year}`
+}
+const isoDate = (d: string) => dateOnly(d)
 const COLORS = ['#1a9e6e', '#3b82c4', '#e05252', '#f5a623', '#7c6fe0', '#d4538b', '#4cbf94']
 const statusMap: Record<string, [string, string]> = {
   DISPONIVEL: ['badge-green', 'Disponível'], ALUGADO: ['badge-blue', 'Alugado'], MANUTENCAO: ['badge-amber', 'Manutenção'], INATIVO: ['badge-gray', 'Inativo'],
@@ -45,6 +51,18 @@ export default function App() {
   const [toast, setToast] = useState<{ msg: string; err?: boolean } | null>(null)
   const [manutFilter, setManutFilter] = useState('TODAS')
   const [finFilter, setFinFilter] = useState('TODAS')
+  const [veiStatusFilter, setVeiStatusFilter] = useState('TODOS')
+  const [veiSearch, setVeiSearch] = useState('')
+  const [aluVeiculoFilter, setAluVeiculoFilter] = useState('TODOS')
+  const [aluPgtoFilter, setAluPgtoFilter] = useState('TODOS')
+  const [aluStatusFilter, setAluStatusFilter] = useState('TODOS')
+  const [aluInicio, setAluInicio] = useState('')
+  const [aluFim, setAluFim] = useState('')
+  const [aluSearch, setAluSearch] = useState('')
+  const [manutVeiculoFilter, setManutVeiculoFilter] = useState('TODOS')
+  const [manutStatusFilter, setManutStatusFilter] = useState('TODOS')
+  const [manutInicio, setManutInicio] = useState('')
+  const [manutFim, setManutFim] = useState('')
   const chartsRef = useRef<Record<string, any>>({})
   const [modal, setModal] = useState<string | null>(null)
   const [editId, setEditId] = useState<string | null>(null)
@@ -100,7 +118,10 @@ export default function App() {
 
   const getVal = (refs: React.MutableRefObject<FormRef>, key: string) => refs.current[key]?.value || ''
   const setVal = (refs: React.MutableRefObject<FormRef>, key: string, val: string) => { if (refs.current[key]) refs.current[key]!.value = val }
-  const todayISO = () => new Date().toISOString().split('T')[0]
+  const todayISO = () => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
 
   function handleStatusPagamentoChange() {
     if (getVal(af, 'statusPagamento') !== 'PAGO') return
@@ -190,8 +211,33 @@ export default function App() {
   const manutencoes = data?.manutencoes || []
   const lancamentos = data?.lancamentos || []
   const m = data?.metricas
-  const manutFilt = manutencoes.filter(x => manutFilter === 'TODAS' ? true : manutFilter === 'AGENDADA' ? x.status === 'AGENDADA' : x.tipo === manutFilter)
+  const inDateRange = (d: string, start: string, end: string) => {
+    const dt = dateOnly(d)
+    return (!start || dt >= start) && (!end || dt <= end)
+  }
+  const veiculosFilt = veiculos.filter(v => {
+    const q = veiSearch.trim().toLowerCase()
+    return (veiStatusFilter === 'TODOS' || v.status === veiStatusFilter) &&
+      (!q || [v.placa, v.modelo, v.cor || '', v.chassi || ''].some(x => x.toLowerCase().includes(q)))
+  })
+  const alugueisFilt = alugueis.filter(a => {
+    const q = aluSearch.trim().toLowerCase()
+    return (aluVeiculoFilter === 'TODOS' || a.veiculoId === aluVeiculoFilter) &&
+      (aluPgtoFilter === 'TODOS' || a.statusPagamento === aluPgtoFilter) &&
+      (aluStatusFilter === 'TODOS' || a.status === aluStatusFilter) &&
+      inDateRange(a.data, aluInicio, aluFim) &&
+      (!q || [a.cliente, a.contato || '', a.rota || '', a.veiculo?.placa || '', a.veiculo?.modelo || ''].some(x => x.toLowerCase().includes(q)))
+  })
+  const manutFilt = manutencoes.filter(x =>
+    (manutFilter === 'TODAS' ? true : manutFilter === 'AGENDADA' ? x.status === 'AGENDADA' : x.tipo === manutFilter) &&
+    (manutVeiculoFilter === 'TODOS' || x.veiculoId === manutVeiculoFilter) &&
+    (manutStatusFilter === 'TODOS' || x.status === manutStatusFilter) &&
+    inDateRange(x.data, manutInicio, manutFim)
+  )
   const lancFilt = lancamentos.filter(x => finFilter === 'TODAS' ? true : x.tipo === finFilter)
+  const clearVeiculoFilters = () => { setVeiStatusFilter('TODOS'); setVeiSearch('') }
+  const clearAluguelFilters = () => { setAluVeiculoFilter('TODOS'); setAluPgtoFilter('TODOS'); setAluStatusFilter('TODOS'); setAluInicio(''); setAluFim(''); setAluSearch('') }
+  const clearManutFilters = () => { setManutFilter('TODAS'); setManutVeiculoFilter('TODOS'); setManutStatusFilter('TODOS'); setManutInicio(''); setManutFim('') }
 
   return (
     <>
@@ -261,11 +307,17 @@ export default function App() {
 
                 {page === 'veiculos' && (
                   <div>
-                    <div className="section-header"><div><div className="section-title">Veículos</div><div className="section-subtitle">Cadastro e controle da frota</div></div><button className="btn btn-primary" onClick={() => openModal('veiculo')}><i className="ti ti-plus"></i> Novo veículo</button></div>
+                    <div className="section-header"><div><div className="section-title">Veiculos</div><div className="section-subtitle">Cadastro e controle da frota</div></div><button className="btn btn-primary" onClick={() => openModal('veiculo')}><i className="ti ti-plus"></i> Novo veiculo</button></div>
+                    <div className="filter-bar">
+                      <div className="filter-group"><label>Status</label><select value={veiStatusFilter} onChange={e => setVeiStatusFilter(e.target.value)}><option value="TODOS">Todos</option><option value="DISPONIVEL">Disponivel</option><option value="ALUGADO">Alugado</option><option value="MANUTENCAO">Manutencao</option><option value="INATIVO">Inativo</option></select></div>
+                      <div className="filter-group filter-grow"><label>Buscar</label><input value={veiSearch} onChange={e => setVeiSearch(e.target.value)} placeholder="Placa, modelo, cor ou chassi" /></div>
+                      <button className="btn btn-secondary btn-sm filter-clear" onClick={clearVeiculoFilters}><i className="ti ti-filter-x"></i> Limpar</button>
+                    </div>
+                    <div className="filter-summary">Mostrando {veiculosFilt.length} de {veiculos.length} veiculo(s)</div>
                     <div className="card"><div className="table-wrapper"><table>
-                      <thead><tr><th>Placa</th><th>Modelo</th><th>Ano</th><th>Cor</th><th>Custo aquisição</th><th>Status</th><th>Ações</th></tr></thead>
-                      <tbody>{veiculos.length === 0 ? <tr><td colSpan={7}><div className="empty-state"><i className="ti ti-car-off"></i><p>Nenhum veículo cadastrado</p></div></td></tr> : veiculos.map(v => (
-                        <tr key={v.id}><td className="fw-semibold nowrap">{v.placa}</td><td>{v.modelo}</td><td>{v.ano || '—'}</td><td>{v.cor || '—'}</td><td className="nowrap">{BRL(v.custo)}</td><td><Badge s={v.status} /></td>
+                      <thead><tr><th>Placa</th><th>Modelo</th><th>Ano</th><th>Cor</th><th>Custo aquisicao</th><th>Status</th><th>Acoes</th></tr></thead>
+                      <tbody>{veiculosFilt.length === 0 ? <tr><td colSpan={7}><div className="empty-state"><i className="ti ti-car-off"></i><p>Nenhum veiculo encontrado</p></div></td></tr> : veiculosFilt.map(v => (
+                        <tr key={v.id}><td className="fw-semibold nowrap">{v.placa}</td><td>{v.modelo}</td><td>{v.ano || '-'}</td><td>{v.cor || '-'}</td><td className="nowrap">{BRL(v.custo)}</td><td><Badge s={v.status} /></td>
                         <td><div className="td-actions"><button className="btn btn-secondary btn-sm btn-icon" onClick={() => openModal('veiculo', v.id)}><i className="ti ti-edit"></i></button><button className="btn btn-danger btn-sm btn-icon" onClick={() => deleteItem('veiculos', v.id)}><i className="ti ti-trash"></i></button></div></td></tr>
                       ))}</tbody>
                     </table></div></div>
@@ -274,17 +326,26 @@ export default function App() {
 
                 {page === 'alugueis' && (
                   <div>
-                    <div className="section-header"><div><div className="section-title">Aluguéis</div><div className="section-subtitle">Registro de locações</div></div><button className="btn btn-primary" onClick={() => openModal('aluguel')}><i className="ti ti-plus"></i> Novo aluguel</button></div>
+                    <div className="section-header"><div><div className="section-title">Alugueis</div><div className="section-subtitle">Registro de locacoes</div></div><button className="btn btn-primary" onClick={() => openModal('aluguel')}><i className="ti ti-plus"></i> Novo aluguel</button></div>
                     {m && <div className="metrics-row" style={{ marginBottom: 16 }}>
-                      <div className="metric-card metric-accent"><div className="metric-label">Total</div><div className="metric-value">{alugueis.length}</div></div>
+                      <div className="metric-card metric-accent"><div className="metric-label">Total filtrado</div><div className="metric-value">{alugueisFilt.length}</div><div className="metric-sub">de {alugueis.length} aluguel(is)</div></div>
                       <div className="metric-card metric-accent"><div className="metric-label">Receita total</div><div className="metric-value metric-up">{BRL(m.totalReceitas)}</div></div>
-                      <div className="metric-card metric-accent-amber"><div className="metric-label">Ticket médio</div><div className="metric-value">{BRL(m.ticketMedio)}</div></div>
+                      <div className="metric-card metric-accent-amber"><div className="metric-label">Ticket medio</div><div className="metric-value">{BRL(m.ticketMedio)}</div></div>
                       <div className="metric-card metric-accent-blue"><div className="metric-label">Em andamento</div><div className="metric-value">{m.alugueisAndamento}</div></div>
                     </div>}
+                    <div className="filter-bar filter-bar-wide">
+                      <div className="filter-group"><label>Veiculo</label><select value={aluVeiculoFilter} onChange={e => setAluVeiculoFilter(e.target.value)}><option value="TODOS">Todos</option>{veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} - {v.modelo}</option>)}</select></div>
+                      <div className="filter-group"><label>Status pgto</label><select value={aluPgtoFilter} onChange={e => setAluPgtoFilter(e.target.value)}><option value="TODOS">Todos</option><option value="PAGO">Pago</option><option value="PARCIAL">Parcial</option><option value="PENDENTE">Pendente</option></select></div>
+                      <div className="filter-group"><label>Status</label><select value={aluStatusFilter} onChange={e => setAluStatusFilter(e.target.value)}><option value="TODOS">Todos</option><option value="CONCLUIDO">Concluido</option><option value="ANDAMENTO">Andamento</option><option value="CANCELADO">Cancelado</option></select></div>
+                      <div className="filter-group"><label>De</label><input type="date" value={aluInicio} onChange={e => setAluInicio(e.target.value)} /></div>
+                      <div className="filter-group"><label>Ate</label><input type="date" value={aluFim} onChange={e => setAluFim(e.target.value)} /></div>
+                      <div className="filter-group filter-grow"><label>Buscar</label><input value={aluSearch} onChange={e => setAluSearch(e.target.value)} placeholder="Cliente, contato, rota ou veiculo" /></div>
+                      <button className="btn btn-secondary btn-sm filter-clear" onClick={clearAluguelFilters}><i className="ti ti-filter-x"></i> Limpar</button>
+                    </div>
                     <div className="card"><div className="table-wrapper"><table>
-                      <thead><tr><th>Data</th><th>Veículo</th><th>Cliente</th><th>Duração</th><th>Valor</th><th>Pago</th><th>A receber</th><th>Forma Pgto</th><th>Status Pgto</th><th>Status</th><th>Ações</th></tr></thead>
-                      <tbody>{alugueis.length === 0 ? <tr><td colSpan={11}><div className="empty-state"><i className="ti ti-route-off"></i><p>Nenhum aluguel registrado</p></div></td></tr> : alugueis.map(a => (
-                        <tr key={a.id}><td className="nowrap">{fmtDate(a.data)}</td><td className="nowrap">{a.veiculo ? `${a.veiculo.placa} — ${a.veiculo.modelo}` : '—'}</td><td>{a.cliente}</td><td className="nowrap">{a.duracao ? `${a.duracao}h` : '—'}</td><td className="nowrap fw-semibold">{BRL(a.valor)}</td><td className="nowrap text-green">{BRL(a.valorPago)}</td><td className={`nowrap fw-semibold ${saldoReceber(a) > 0 ? 'text-red' : 'text-green'}`}>{BRL(saldoReceber(a))}</td><td>{pagMap[a.pagamento] || a.pagamento}</td><td><Badge s={a.statusPagamento || "PAGO"} /></td><td><Badge s={a.status} /></td>
+                      <thead><tr><th>Data</th><th>Veiculo</th><th>Cliente</th><th>Duracao</th><th>Valor</th><th>Pago</th><th>A receber</th><th>Forma Pgto</th><th>Status Pgto</th><th>Status</th><th>Acoes</th></tr></thead>
+                      <tbody>{alugueisFilt.length === 0 ? <tr><td colSpan={11}><div className="empty-state"><i className="ti ti-route-off"></i><p>Nenhum aluguel encontrado</p></div></td></tr> : alugueisFilt.map(a => (
+                        <tr key={a.id}><td className="nowrap">{fmtDate(a.data)}</td><td className="nowrap">{a.veiculo ? a.veiculo.placa + ' - ' + a.veiculo.modelo : '-'}</td><td>{a.cliente}</td><td className="nowrap">{a.duracao ? a.duracao + 'h' : '-'}</td><td className="nowrap fw-semibold">{BRL(a.valor)}</td><td className="nowrap text-green">{BRL(a.valorPago)}</td><td className={'nowrap fw-semibold ' + (saldoReceber(a) > 0 ? 'text-red' : 'text-green')}>{BRL(saldoReceber(a))}</td><td>{pagMap[a.pagamento] || a.pagamento}</td><td><Badge s={a.statusPagamento || "PAGO"} /></td><td><Badge s={a.status} /></td>
                         <td><div className="td-actions"><button className="btn btn-secondary btn-sm btn-icon" onClick={() => openModal('aluguel', a.id)}><i className="ti ti-edit"></i></button><button className="btn btn-danger btn-sm btn-icon" onClick={() => deleteItem('alugueis', a.id)}><i className="ti ti-trash"></i></button></div></td></tr>
                       ))}</tbody>
                     </table></div></div>
@@ -293,12 +354,20 @@ export default function App() {
 
                 {page === 'manutencoes' && (
                   <div>
-                    <div className="section-header"><div><div className="section-title">Manutenções</div><div className="section-subtitle">Controle preventivo e corretivo</div></div><button className="btn btn-primary" onClick={() => openModal('manutencao')}><i className="ti ti-plus"></i> Nova manutenção</button></div>
-                    <div className="tab-bar">{['TODAS','PREVENTIVA','CORRETIVA','AGENDADA'].map(f => <button key={f} className={`tab-btn${manutFilter === f ? ' active' : ''}`} onClick={() => setManutFilter(f)}>{f === 'TODAS' ? 'Todas' : f === 'PREVENTIVA' ? 'Preventivas' : f === 'CORRETIVA' ? 'Corretivas' : 'Agendadas'}</button>)}</div>
+                    <div className="section-header"><div><div className="section-title">Manutencoes</div><div className="section-subtitle">Controle preventivo e corretivo</div></div><button className="btn btn-primary" onClick={() => openModal('manutencao')}><i className="ti ti-plus"></i> Nova manutencao</button></div>
+                    <div className="tab-bar">{['TODAS','PREVENTIVA','CORRETIVA','AGENDADA'].map(f => <button key={f} className={'tab-btn' + (manutFilter === f ? ' active' : '')} onClick={() => setManutFilter(f)}>{f === 'TODAS' ? 'Todas' : f === 'PREVENTIVA' ? 'Preventivas' : f === 'CORRETIVA' ? 'Corretivas' : 'Agendadas'}</button>)}</div>
+                    <div className="filter-bar filter-bar-wide">
+                      <div className="filter-group"><label>Veiculo</label><select value={manutVeiculoFilter} onChange={e => setManutVeiculoFilter(e.target.value)}><option value="TODOS">Todos</option>{veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} - {v.modelo}</option>)}</select></div>
+                      <div className="filter-group"><label>Status</label><select value={manutStatusFilter} onChange={e => setManutStatusFilter(e.target.value)}><option value="TODOS">Todos</option><option value="CONCLUIDA">Concluida</option><option value="AGENDADA">Agendada</option><option value="ANDAMENTO">Andamento</option></select></div>
+                      <div className="filter-group"><label>De</label><input type="date" value={manutInicio} onChange={e => setManutInicio(e.target.value)} /></div>
+                      <div className="filter-group"><label>Ate</label><input type="date" value={manutFim} onChange={e => setManutFim(e.target.value)} /></div>
+                      <button className="btn btn-secondary btn-sm filter-clear" onClick={clearManutFilters}><i className="ti ti-filter-x"></i> Limpar</button>
+                    </div>
+                    <div className="filter-summary">Mostrando {manutFilt.length} de {manutencoes.length} manutencao(oes)</div>
                     <div className="card"><div className="table-wrapper"><table>
-                      <thead><tr><th>Data</th><th>Veículo</th><th>Tipo</th><th>Descrição</th><th>Oficina</th><th>Custo</th><th>Status</th><th>Ações</th></tr></thead>
-                      <tbody>{manutFilt.length === 0 ? <tr><td colSpan={8}><div className="empty-state"><i className="ti ti-tool-off"></i><p>Nenhuma manutenção registrada</p></div></td></tr> : manutFilt.map(mn => (
-                        <tr key={mn.id}><td className="nowrap">{fmtDate(mn.data)}</td><td className="nowrap">{mn.veiculo ? `${mn.veiculo.placa} — ${mn.veiculo.modelo}` : '—'}</td><td><Badge s={mn.tipo} /></td><td>{mn.descricao}</td><td>{mn.oficina || '—'}</td><td className="nowrap">{BRL(mn.custo)}</td><td><Badge s={mn.status} /></td>
+                      <thead><tr><th>Data</th><th>Veiculo</th><th>Tipo</th><th>Descricao</th><th>Oficina</th><th>Custo</th><th>Status</th><th>Acoes</th></tr></thead>
+                      <tbody>{manutFilt.length === 0 ? <tr><td colSpan={8}><div className="empty-state"><i className="ti ti-tool-off"></i><p>Nenhuma manutencao encontrada</p></div></td></tr> : manutFilt.map(mn => (
+                        <tr key={mn.id}><td className="nowrap">{fmtDate(mn.data)}</td><td className="nowrap">{mn.veiculo ? mn.veiculo.placa + ' - ' + mn.veiculo.modelo : '-'}</td><td><Badge s={mn.tipo} /></td><td>{mn.descricao}</td><td>{mn.oficina || '-'}</td><td className="nowrap">{BRL(mn.custo)}</td><td><Badge s={mn.status} /></td>
                         <td><div className="td-actions"><button className="btn btn-secondary btn-sm btn-icon" onClick={() => openModal('manutencao', mn.id)}><i className="ti ti-edit"></i></button><button className="btn btn-danger btn-sm btn-icon" onClick={() => deleteItem('manutencoes', mn.id)}><i className="ti ti-trash"></i></button></div></td></tr>
                       ))}</tbody>
                     </table></div></div>
@@ -355,19 +424,50 @@ export default function App() {
                       <i className="ti ti-book"></i>
                     </div>
                     <div className="playbook-grid">
-                      <div className="playbook-step"><div className="playbook-step-num">1</div><div><h3>Cadastrar veículo</h3><p>Abra Veículos, clique em Novo veículo, informe placa e modelo, complete os dados disponíveis e salve.</p></div></div>
-                      <div className="playbook-step"><div className="playbook-step-num">2</div><div><h3>Registrar locação</h3><p>Abra Aluguéis, clique em Novo aluguel, selecione veículo, cliente, duração, valor total e forma de pagamento.</p></div></div>
-                      <div className="playbook-step"><div className="playbook-step-num">3</div><div><h3>Atualizar pagamento</h3><p>No aluguel, escolha Pago, Parcial ou Pendente. Ao marcar Pago, a data do pagamento é preenchida automaticamente.</p></div></div>
-                      <div className="playbook-step"><div className="playbook-step-num">4</div><div><h3>Acompanhar a receber</h3><p>Use o Dashboard e a tabela de Aluguéis para conferir o saldo em aberto por locação e os pagamentos pendentes.</p></div></div>
-                      <div className="playbook-step"><div className="playbook-step-num">5</div><div><h3>Lançar manutenção</h3><p>Abra Manutenções, registre tipo, veículo, descrição, custo e status para manter o histórico da frota.</p></div></div>
-                      <div className="playbook-step"><div className="playbook-step-num">6</div><div><h3>Controlar financeiro</h3><p>Abra Financeiro para cadastrar despesas manuais e conferir receitas geradas pelos aluguéis recebidos.</p></div></div>
+                      <div className="playbook-step">
+                        <div className="playbook-step-num">1</div>
+                        <div><h3>Veiculos</h3><p>Cadastro base da frota. Sem veiculo cadastrado, nao e possivel registrar aluguel nem manutencao.</p>
+                          <ul><li><strong>Obrigatorios:</strong> placa e modelo.</li><li><strong>Status:</strong> disponivel, alugado, manutencao ou inativo organiza a operacao, mas nao cria lancamento financeiro sozinho.</li><li><strong>Custo de aquisicao:</strong> entra no calculo de ROI.</li><li><strong>Ao excluir:</strong> tambem remove alugueis, manutencoes e lancamentos vinculados ao veiculo.</li></ul>
+                        </div>
+                      </div>
+                      <div className="playbook-step">
+                        <div className="playbook-step-num">2</div>
+                        <div><h3>Alugueis</h3><p>Registro que alimenta quantidade de locacoes, receita, saldo a receber e historico por veiculo.</p>
+                          <ul><li><strong>Obrigatorios:</strong> data, veiculo, cliente e valor total.</li><li><strong>Pago:</strong> para gerar receita corretamente, use status de pagamento Pago, valor pago igual ao valor total e data de pagamento preenchida.</li><li><strong>Parcial:</strong> informe apenas o valor recebido. O saldo a receber sera valor total menos valor pago.</li><li><strong>Pendente:</strong> deixe valor pago zerado. O valor total entra como a receber.</li><li><strong>Cancelado:</strong> remove ou impede receita automatica desse aluguel.</li></ul>
+                        </div>
+                      </div>
+                      <div className="playbook-step">
+                        <div className="playbook-step-num">3</div>
+                        <div><h3>Receita automatica</h3><p>O financeiro recebe lancamento de receita a partir do aluguel quando existe valor pago e o aluguel nao esta cancelado.</p>
+                          <ul><li><strong>Valor da receita:</strong> usa o campo Valor pago, nao o valor total.</li><li><strong>Data da receita:</strong> na edicao usa a data de pagamento; se ela estiver vazia, usa a data do aluguel.</li><li><strong>Ao mudar pagamento:</strong> se o valor pago virar zero, a receita vinculada e removida.</li><li><strong>Ao editar:</strong> valor, data e descricao do lancamento vinculado sao atualizados.</li></ul>
+                        </div>
+                      </div>
+                      <div className="playbook-step">
+                        <div className="playbook-step-num">4</div>
+                        <div><h3>Manutencoes</h3><p>Controle preventivo e corretivo da frota, com despesa automatica quando houver custo.</p>
+                          <ul><li><strong>Obrigatorios:</strong> data, veiculo e descricao.</li><li><strong>Tipo:</strong> preventiva ou corretiva ajuda a analisar custos.</li><li><strong>Custo maior que zero:</strong> cria despesa automatica em Financeiro na categoria Manutencao.</li><li><strong>Ao editar custo/data:</strong> a despesa vinculada e atualizada.</li><li><strong>Ao excluir:</strong> tambem remove a despesa vinculada.</li></ul>
+                        </div>
+                      </div>
+                      <div className="playbook-step">
+                        <div className="playbook-step-num">5</div>
+                        <div><h3>Financeiro</h3><p>Area para acompanhar receitas automaticas e cadastrar despesas manuais da operacao.</p>
+                          <ul><li><strong>Nova despesa:</strong> exige data, descricao e valor.</li><li><strong>Categoria:</strong> combustivel, seguro, licenciamento, ponto, marketing, pessoal, equipamento ou outros.</li><li><strong>Receitas de aluguel:</strong> sao geradas pelo cadastro de Alugueis e nao devem ser duplicadas manualmente.</li><li><strong>Despesas de manutencao:</strong> sao geradas pela tela Manutencoes quando houver custo.</li></ul>
+                        </div>
+                      </div>
+                      <div className="playbook-step">
+                        <div className="playbook-step-num">6</div>
+                        <div><h3>Dashboard e ROI</h3><p>Os indicadores dependem da qualidade dos cadastros e dos lancamentos financeiros vinculados.</p>
+                          <ul><li><strong>A receber:</strong> soma apenas alugueis nao cancelados com pagamento Pendente ou Parcial.</li><li><strong>Receita total:</strong> soma lancamentos financeiros do tipo Receita.</li><li><strong>Despesas:</strong> somam manutencoes com custo e despesas manuais cadastradas no Financeiro.</li><li><strong>ROI:</strong> compara lucro liquido com o custo de aquisicao dos veiculos.</li></ul>
+                        </div>
+                      </div>
                     </div>
                     <div className="playbook-checklist">
-                      <div className="chart-card-title"><i className="ti ti-clipboard-check"></i> Conferência de fim do dia</div>
-                      <div className="playbook-check-row"><i className="ti ti-circle-check"></i><span>Todos os aluguéis do dia foram cadastrados.</span></div>
-                      <div className="playbook-check-row"><i className="ti ti-circle-check"></i><span>Pagamentos recebidos foram marcados como Pago ou Parcial.</span></div>
-                      <div className="playbook-check-row"><i className="ti ti-circle-check"></i><span>Despesas e manutenções foram registradas no dia correto.</span></div>
-                      <div className="playbook-check-row"><i className="ti ti-circle-check"></i><span>Dashboard foi revisado para identificar saldo a receber.</span></div>
+                      <div className="chart-card-title"><i className="ti ti-clipboard-check"></i> Conferencia antes de fechar o dia</div>
+                      <div className="playbook-check-row"><i className="ti ti-circle-check"></i><span>Alugueis pagos estao com status Pago, valor pago preenchido e data de pagamento informada.</span></div>
+                      <div className="playbook-check-row"><i className="ti ti-circle-check"></i><span>Alugueis parciais mostram somente o valor recebido no campo Valor pago.</span></div>
+                      <div className="playbook-check-row"><i className="ti ti-circle-check"></i><span>Alugueis pendentes permanecem com valor pago zerado para aparecerem no A receber.</span></div>
+                      <div className="playbook-check-row"><i className="ti ti-circle-check"></i><span>Manutencoes com custo foram cadastradas na tela Manutencoes, nao duplicadas como despesa manual.</span></div>
+                      <div className="playbook-check-row"><i className="ti ti-circle-check"></i><span>Despesas gerais foram registradas no Financeiro com categoria correta e veiculo quando aplicavel.</span></div>
                     </div>
                   </div>
                 )}

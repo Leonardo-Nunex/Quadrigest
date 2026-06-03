@@ -126,6 +126,12 @@ textarea { resize: vertical; min-height: 70px; }
 .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
 .section-title { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; }
 .section-subtitle { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.filter-bar { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; margin-bottom: 12px; display: flex; align-items: flex-end; flex-wrap: wrap; gap: 10px; }
+.filter-bar-wide .filter-group { min-width: 150px; }
+.filter-group { display: flex; flex-direction: column; gap: 5px; min-width: 170px; }
+.filter-grow { flex: 1 1 240px; }
+.filter-clear { height: 35px; margin-left: auto; }
+.filter-summary { color: var(--text-muted); font-size: 12px; margin: -2px 0 10px; }
 .tab-bar { display: flex; gap: 4px; background: var(--bg); padding: 4px; border-radius: var(--radius-sm); width: fit-content; margin-bottom: 16px; }
 .tab-btn { padding: 5px 14px; border-radius: 6px; border: none; background: transparent; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 500; color: var(--text-muted); cursor: pointer; }
 .tab-btn.active { background: var(--card); color: var(--text); box-shadow: var(--shadow-sm); }
@@ -154,6 +160,9 @@ textarea { resize: vertical; min-height: 70px; }
 .playbook-step-num { width: 28px; height: 28px; border-radius: 50%; background: var(--green-light); color: var(--green-dark); display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; }
 .playbook-step h3 { font-family: 'Syne', sans-serif; font-size: 14px; margin-bottom: 5px; }
 .playbook-step p { color: var(--text-muted); font-size: 12px; line-height: 1.45; }
+.playbook-step ul { margin-top: 10px; padding-left: 17px; display: flex; flex-direction: column; gap: 7px; }
+.playbook-step li { color: var(--text-muted); font-size: 12px; line-height: 1.42; }
+.playbook-step strong { color: var(--text); font-weight: 600; }
 .playbook-checklist { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
 .playbook-check-row { display: flex; align-items: center; gap: 9px; padding: 9px 0; border-top: 1px solid var(--border); color: var(--text); font-size: 13px; }
 .playbook-check-row i { color: var(--green); font-size: 18px; }
@@ -174,6 +183,9 @@ textarea { resize: vertical; min-height: 70px; }
   .form-row { grid-template-columns: 1fr; }
   .metrics-row { grid-template-columns: 1fr 1fr; }
   .page-content { padding: 16px; }
+  .filter-bar { display: grid; grid-template-columns: 1fr; align-items: stretch; }
+  .filter-group { min-width: 0; }
+  .filter-clear { margin-left: 0; width: 100%; justify-content: center; }
 }
 .text-green { color: var(--green); }
 .text-red { color: var(--red); }
