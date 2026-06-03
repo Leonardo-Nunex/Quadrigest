@@ -254,7 +254,7 @@ export default function App() {
             {pages.map((p) => (
               <div key={p.id}>
                 {p.section && <div className="nav-section-label">{p.section}</div>}
-                <a className={`nav-item${page === p.id ? ' active' : ''}`} onClick={e => { e.preventDefault(); setPage(p.id) }} href="#">
+                <a className={`nav-item${page === p.id ? ' active' : ''}`} onClick={e => { e.preventDefault(); setPage(p.id); document.getElementById('sidebar')?.classList.remove('open') }} href="#">
                   <i className={`ti ti-${p.icon}`}></i> {p.label}
                   {p.count !== undefined && <span className="badge-count">{p.count}</span>}
                 </a>
