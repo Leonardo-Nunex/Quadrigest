@@ -144,6 +144,20 @@ textarea { resize: vertical; min-height: 70px; }
 .roi-row { font-size: 12px; }
 .roi-row span { color: rgba(255,255,255,0.5); margin-right: 8px; }
 
+.playbook-hero { background: var(--sidebar-bg); color: #fff; border-radius: var(--radius); padding: 22px 24px; margin-bottom: 18px; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.playbook-hero h2 { font-family: 'Syne', sans-serif; font-size: 22px; line-height: 1.2; margin-bottom: 6px; }
+.playbook-hero p { color: rgba(255,255,255,0.62); font-size: 13px; max-width: 620px; }
+.playbook-hero i { color: var(--green-mid); font-size: 42px; flex-shrink: 0; }
+.playbook-kicker { color: var(--green-mid); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px; }
+.playbook-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin-bottom: 18px; }
+.playbook-step { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; gap: 12px; align-items: flex-start; }
+.playbook-step-num { width: 28px; height: 28px; border-radius: 50%; background: var(--green-light); color: var(--green-dark); display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; }
+.playbook-step h3 { font-family: 'Syne', sans-serif; font-size: 14px; margin-bottom: 5px; }
+.playbook-step p { color: var(--text-muted); font-size: 12px; line-height: 1.45; }
+.playbook-checklist { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+.playbook-check-row { display: flex; align-items: center; gap: 9px; padding: 9px 0; border-top: 1px solid var(--border); color: var(--text); font-size: 13px; }
+.playbook-check-row i { color: var(--green); font-size: 18px; }
+
 .toast { position: fixed; bottom: 24px; right: 24px; background: var(--sidebar-bg); color: #fff; padding: 12px 18px; border-radius: var(--radius-sm); font-size: 13px; z-index: 9999; display: flex; align-items: center; gap: 8px; box-shadow: var(--shadow-md); animation: slideUp 0.2s; }
 .toast i { color: var(--green-mid); }
 .toast.error i { color: var(--red); }

@@ -29,17 +29,20 @@ export async function GET() {
     const ticketMedio = aluguelConcluidos.length > 0 ? totalReceitas / aluguelConcluidos.length : 0
 
     // Saldo devedor — aluguéis não cancelados com pagamento PENDENTE ou PARCIAL
+    const saldoAReceber = (a: { valor: number; valorPago?: number | null }) =>
+      Math.max(Number(a.valor || 0) - Number(a.valorPago || 0), 0)
+
     const inadimplentes = alugueis.filter(a =>
       a.status !== 'CANCELADO' &&
       (a.statusPagamento === 'PENDENTE' || a.statusPagamento === 'PARCIAL')
     )
-    const totalDevedor = inadimplentes.reduce((s, a) => s + a.valor, 0)
+    const totalDevedor = inadimplentes.reduce((s, a) => s + saldoAReceber(a), 0)
 
     // Agrupado por cliente
     const devedoresPorCliente: Record<string, { cliente: string; total: number; qtd: number }> = {}
     inadimplentes.forEach(a => {
       if (!devedoresPorCliente[a.cliente]) devedoresPorCliente[a.cliente] = { cliente: a.cliente, total: 0, qtd: 0 }
-      devedoresPorCliente[a.cliente].total += a.valor
+      devedoresPorCliente[a.cliente].total += saldoAReceber(a)
       devedoresPorCliente[a.cliente].qtd += 1
     })
 

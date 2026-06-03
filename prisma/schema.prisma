@@ -40,6 +40,7 @@ model Aluguel {
   contato        String?
   duracao        Float?
   valor          Float
+  valorPago      Float          @default(0)
   pagamento      FormaPagamento @default(PIX)
   statusPagamento StatusPagamento @default(PAGO)
   dataPagamento  DateTime?

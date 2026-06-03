@@ -16,11 +16,19 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { data, veiculoId, cliente, contato, duracao, valor, pagamento, statusPagamento, dataPagamento, status, rota, obs } = body
+    const { data, veiculoId, cliente, contato, duracao, valor, valorPago, pagamento, statusPagamento, dataPagamento, status, rota, obs } = body
 
     if (!data || !veiculoId || !cliente || !valor) {
       return NextResponse.json({ error: 'Campos obrigatórios: data, veiculoId, cliente, valor' }, { status: 400 })
     }
+
+    const valorTotal = Number(valor)
+    const valorPagoInformado = valorPago !== undefined && valorPago !== ''
+    const statusSolicitado = statusPagamento || 'PAGO'
+    const valorPagoBase = valorPagoInformado ? Number(valorPago) : statusSolicitado === 'PAGO' ? valorTotal : 0
+    const pago = Math.min(Math.max(valorPagoBase, 0), valorTotal)
+    const statusPgto = pago >= valorTotal ? 'PAGO' : pago > 0 ? 'PARCIAL' : 'PENDENTE'
+    const dataPgto = dataPagamento ? new Date(dataPagamento) : statusPgto === 'PAGO' ? new Date() : null
 
     const aluguel = await prisma.aluguel.create({
       data: {
@@ -29,10 +37,11 @@ export async function POST(req: NextRequest) {
         cliente: cliente.trim(),
         contato: contato || null,
         duracao: duracao ? Number(duracao) : null,
-        valor: Number(valor),
+        valor: valorTotal,
+        valorPago: pago,
         pagamento: pagamento || 'PIX',
-        statusPagamento: statusPagamento || 'PAGO',
-        dataPagamento: dataPagamento ? new Date(dataPagamento) : null,
+        statusPagamento: statusPgto,
+        dataPagamento: dataPgto,
         status: status || 'CONCLUIDO',
         rota: rota || null,
         obs: obs || null,
@@ -41,7 +50,7 @@ export async function POST(req: NextRequest) {
     })
 
     // Lançamento automático apenas se pagamento não estiver pendente
-    if (aluguel.status !== 'CANCELADO' && aluguel.statusPagamento !== 'PENDENTE') {
+    if (aluguel.status !== 'CANCELADO' && aluguel.valorPago > 0) {
       const v = aluguel.veiculo
       await prisma.lancamento.create({
         data: {
@@ -49,7 +58,7 @@ export async function POST(req: NextRequest) {
           descricao: `Aluguel — ${cliente} (${v.placa} ${v.modelo})`,
           categoria: 'ALUGUEL',
           tipo: 'RECEITA',
-          valor: Number(valor),
+          valor: aluguel.valorPago,
           aluguelId: aluguel.id,
           veiculoId,
         }

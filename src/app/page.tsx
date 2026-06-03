@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 
 type Veiculo = { id: string; placa: string; modelo: string; ano?: number; cor?: string; custo: number; chassi?: string; status: string; obs?: string }
-type Aluguel = { id: string; data: string; veiculoId: string; veiculo?: { placa: string; modelo: string }; cliente: string; contato?: string; duracao?: number; valor: number; pagamento: string; statusPagamento: string; dataPagamento?: string; status: string; rota?: string; obs?: string }
+type Aluguel = { id: string; data: string; veiculoId: string; veiculo?: { placa: string; modelo: string }; cliente: string; contato?: string; duracao?: number; valor: number; valorPago: number; pagamento: string; statusPagamento: string; dataPagamento?: string; status: string; rota?: string; obs?: string }
 type Manutencao = { id: string; data: string; veiculoId: string; veiculo?: { placa: string; modelo: string }; tipo: string; descricao: string; custo: number; oficina?: string; proxima?: string; status: string }
 type Lancamento = { id: string; data: string; descricao: string; categoria: string; tipo: string; valor: number; veiculoId?: string; aluguelId?: string; manutencaoId?: string }
 type Devedores = { cliente: string; total: number; qtd: number }
@@ -11,6 +11,7 @@ type DashData = { veiculos: Veiculo[]; alugueis: Aluguel[]; manutencoes: Manuten
 type FormRef = Record<string, HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null>
 
 const BRL = (v: number) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+const saldoReceber = (a: Pick<Aluguel, 'valor' | 'valorPago'>) => Math.max(Number(a.valor || 0) - Number(a.valorPago || 0), 0)
 const fmtDate = (d: string) => { if (!d) return '—'; return new Date(d).toLocaleDateString('pt-BR') }
 const isoDate = (d: string) => d ? new Date(d).toISOString().split('T')[0] : ''
 const COLORS = ['#1a9e6e', '#3b82c4', '#e05252', '#f5a623', '#7c6fe0', '#d4538b', '#4cbf94']
@@ -99,6 +100,13 @@ export default function App() {
 
   const getVal = (refs: React.MutableRefObject<FormRef>, key: string) => refs.current[key]?.value || ''
   const setVal = (refs: React.MutableRefObject<FormRef>, key: string, val: string) => { if (refs.current[key]) refs.current[key]!.value = val }
+  const todayISO = () => new Date().toISOString().split('T')[0]
+
+  function handleStatusPagamentoChange() {
+    if (getVal(af, 'statusPagamento') !== 'PAGO') return
+    if (!getVal(af, 'dataPagamento')) setVal(af, 'dataPagamento', todayISO())
+    if (!getVal(af, 'valorPago') && getVal(af, 'valor')) setVal(af, 'valorPago', getVal(af, 'valor'))
+  }
 
   function openModal(type: string, id?: string) {
     setModal(type); setEditId(id || null)
@@ -111,16 +119,16 @@ export default function App() {
   }
 
   function clearForm(type: string) {
-    const today = new Date().toISOString().split('T')[0]
+    const today = todayISO()
     if (type === 'veiculo') { ['placa','modelo','ano','cor','custo','chassi','obs'].forEach(k => setVal(vf, k, '')); setVal(vf, 'status', 'DISPONIVEL') }
-    if (type === 'aluguel') { ['cliente','contato','duracao','valor','rota','obs'].forEach(k => setVal(af, k, '')); setVal(af, 'data', today); setVal(af, 'veiculo', ''); setVal(af, 'pagamento', 'PIX'); setVal(af, 'status', 'CONCLUIDO') }
+    if (type === 'aluguel') { ['cliente','contato','duracao','valor','valorPago','dataPagamento','rota','obs'].forEach(k => setVal(af, k, '')); setVal(af, 'data', today); setVal(af, 'veiculo', ''); setVal(af, 'pagamento', 'PIX'); setVal(af, 'statusPagamento', 'PAGO'); setVal(af, 'status', 'CONCLUIDO') }
     if (type === 'manutencao') { ['desc','custo','oficina','proxima'].forEach(k => setVal(mf, k, '')); setVal(mf, 'data', today); setVal(mf, 'veiculo', ''); setVal(mf, 'tipo', 'PREVENTIVA'); setVal(mf, 'status', 'CONCLUIDA') }
     if (type === 'despesa') { ['desc','valor'].forEach(k => setVal(df, k, '')); setVal(df, 'data', today); setVal(df, 'categoria', 'COMBUSTIVEL'); setVal(df, 'veiculo', '') }
   }
 
   function fillForm(type: string, rec: any) {
     if (type === 'veiculo') { ['placa','modelo','ano','cor','custo','chassi','obs'].forEach(k => setVal(vf, k, String(rec[k] || ''))); setVal(vf, 'status', rec.status) }
-    if (type === 'aluguel') { setVal(af, 'data', isoDate(rec.data)); ['cliente','contato','duracao','valor','rota','obs'].forEach(k => setVal(af, k, String(rec[k] || ''))); setVal(af, 'veiculo', rec.veiculoId); setVal(af, 'pagamento', rec.pagamento); setVal(af, 'status', rec.status) }
+    if (type === 'aluguel') { setVal(af, 'data', isoDate(rec.data)); setVal(af, 'dataPagamento', isoDate(rec.dataPagamento)); ['cliente','contato','duracao','valor','valorPago','rota','obs'].forEach(k => setVal(af, k, String(rec[k] || ''))); setVal(af, 'veiculo', rec.veiculoId); setVal(af, 'pagamento', rec.pagamento); setVal(af, 'statusPagamento', rec.statusPagamento || 'PAGO'); setVal(af, 'status', rec.status) }
     if (type === 'manutencao') { setVal(mf, 'data', isoDate(rec.data)); ['desc','custo','oficina','proxima'].forEach(k => setVal(mf, k, String(rec[k] || ''))); setVal(mf, 'veiculo', rec.veiculoId); setVal(mf, 'tipo', rec.tipo); setVal(mf, 'status', rec.status) }
     if (type === 'despesa') { setVal(df, 'data', isoDate(rec.data)); ['desc','valor'].forEach(k => setVal(df, k, String(rec[k] || ''))); setVal(df, 'categoria', rec.categoria); setVal(df, 'veiculo', rec.veiculoId || '') }
   }
@@ -135,7 +143,7 @@ export default function App() {
   }
 
   async function saveAluguel() {
-    const body = { data: getVal(af,'data'), veiculoId: getVal(af,'veiculo'), cliente: getVal(af,'cliente'), contato: getVal(af,'contato'), duracao: getVal(af,'duracao'), valor: getVal(af,'valor'), pagamento: getVal(af,'pagamento'), status: getVal(af,'status'), rota: getVal(af,'rota'), obs: getVal(af,'obs') }
+    const body = { data: getVal(af,'data'), veiculoId: getVal(af,'veiculo'), cliente: getVal(af,'cliente'), contato: getVal(af,'contato'), duracao: getVal(af,'duracao'), valor: getVal(af,'valor'), valorPago: getVal(af,'valorPago'), pagamento: getVal(af,'pagamento'), statusPagamento: getVal(af,'statusPagamento'), dataPagamento: getVal(af,'dataPagamento'), status: getVal(af,'status'), rota: getVal(af,'rota'), obs: getVal(af,'obs') }
     if (!body.data || !body.veiculoId || !body.cliente || !body.valor) { showToast('Preencha os campos obrigatórios', true); return }
     setSaving(true)
     try { editId ? await apiCall(`/api/alugueis/${editId}`, 'PUT', body) : await apiCall('/api/alugueis', 'POST', body); setModal(null); await loadData(); showToast('Aluguel registrado!') }
@@ -174,6 +182,7 @@ export default function App() {
     { id: 'manutencoes', label: 'Manutenções', icon: 'tool', count: data?.manutencoes.length },
     { id: 'financeiro', label: 'Financeiro', icon: 'cash', section: 'Financeiro' },
     { id: 'roi', label: 'ROI & Análise', icon: 'chart-line' },
+    { id: 'playbook', label: 'Playbook', icon: 'book', section: 'Ajuda' },
   ]
 
   const veiculos = data?.veiculos || []
@@ -273,9 +282,9 @@ export default function App() {
                       <div className="metric-card metric-accent-blue"><div className="metric-label">Em andamento</div><div className="metric-value">{m.alugueisAndamento}</div></div>
                     </div>}
                     <div className="card"><div className="table-wrapper"><table>
-                      <thead><tr><th>Data</th><th>Veículo</th><th>Cliente</th><th>Duração</th><th>Valor</th><th>Forma Pgto</th><th>Status Pgto</th><th>Status</th><th>Ações</th></tr></thead>
-                      <tbody>{alugueis.length === 0 ? <tr><td colSpan={8}><div className="empty-state"><i className="ti ti-route-off"></i><p>Nenhum aluguel registrado</p></div></td></tr> : alugueis.map(a => (
-                        <tr key={a.id}><td className="nowrap">{fmtDate(a.data)}</td><td className="nowrap">{a.veiculo ? `${a.veiculo.placa} — ${a.veiculo.modelo}` : '—'}</td><td>{a.cliente}</td><td className="nowrap">{a.duracao ? `${a.duracao}h` : '—'}</td><td className="nowrap fw-semibold">{BRL(a.valor)}</td><td>{pagMap[a.pagamento] || a.pagamento}</td><td><Badge s={a.statusPagamento || "PAGO"} /></td><td><Badge s={a.status} /></td>
+                      <thead><tr><th>Data</th><th>Veículo</th><th>Cliente</th><th>Duração</th><th>Valor</th><th>Pago</th><th>A receber</th><th>Forma Pgto</th><th>Status Pgto</th><th>Status</th><th>Ações</th></tr></thead>
+                      <tbody>{alugueis.length === 0 ? <tr><td colSpan={11}><div className="empty-state"><i className="ti ti-route-off"></i><p>Nenhum aluguel registrado</p></div></td></tr> : alugueis.map(a => (
+                        <tr key={a.id}><td className="nowrap">{fmtDate(a.data)}</td><td className="nowrap">{a.veiculo ? `${a.veiculo.placa} — ${a.veiculo.modelo}` : '—'}</td><td>{a.cliente}</td><td className="nowrap">{a.duracao ? `${a.duracao}h` : '—'}</td><td className="nowrap fw-semibold">{BRL(a.valor)}</td><td className="nowrap text-green">{BRL(a.valorPago)}</td><td className={`nowrap fw-semibold ${saldoReceber(a) > 0 ? 'text-red' : 'text-green'}`}>{BRL(saldoReceber(a))}</td><td>{pagMap[a.pagamento] || a.pagamento}</td><td><Badge s={a.statusPagamento || "PAGO"} /></td><td><Badge s={a.status} /></td>
                         <td><div className="td-actions"><button className="btn btn-secondary btn-sm btn-icon" onClick={() => openModal('aluguel', a.id)}><i className="ti ti-edit"></i></button><button className="btn btn-danger btn-sm btn-icon" onClick={() => deleteItem('alugueis', a.id)}><i className="ti ti-trash"></i></button></div></td></tr>
                       ))}</tbody>
                     </table></div></div>
@@ -333,6 +342,35 @@ export default function App() {
                     </div>
                   </div>
                 )}
+
+                {page === 'playbook' && (
+                  <div>
+                    <div className="section-header"><div><div className="section-title">Playbook</div><div className="section-subtitle">Manual de passos para os usuários</div></div></div>
+                    <div className="playbook-hero">
+                      <div>
+                        <div className="playbook-kicker">Operação diária</div>
+                        <h2>Manual rápido do QuadriGest</h2>
+                        <p>Use este roteiro para manter locações, frota, manutenção e financeiro sempre atualizados.</p>
+                      </div>
+                      <i className="ti ti-book"></i>
+                    </div>
+                    <div className="playbook-grid">
+                      <div className="playbook-step"><div className="playbook-step-num">1</div><div><h3>Cadastrar veículo</h3><p>Abra Veículos, clique em Novo veículo, informe placa e modelo, complete os dados disponíveis e salve.</p></div></div>
+                      <div className="playbook-step"><div className="playbook-step-num">2</div><div><h3>Registrar locação</h3><p>Abra Aluguéis, clique em Novo aluguel, selecione veículo, cliente, duração, valor total e forma de pagamento.</p></div></div>
+                      <div className="playbook-step"><div className="playbook-step-num">3</div><div><h3>Atualizar pagamento</h3><p>No aluguel, escolha Pago, Parcial ou Pendente. Ao marcar Pago, a data do pagamento é preenchida automaticamente.</p></div></div>
+                      <div className="playbook-step"><div className="playbook-step-num">4</div><div><h3>Acompanhar a receber</h3><p>Use o Dashboard e a tabela de Aluguéis para conferir o saldo em aberto por locação e os pagamentos pendentes.</p></div></div>
+                      <div className="playbook-step"><div className="playbook-step-num">5</div><div><h3>Lançar manutenção</h3><p>Abra Manutenções, registre tipo, veículo, descrição, custo e status para manter o histórico da frota.</p></div></div>
+                      <div className="playbook-step"><div className="playbook-step-num">6</div><div><h3>Controlar financeiro</h3><p>Abra Financeiro para cadastrar despesas manuais e conferir receitas geradas pelos aluguéis recebidos.</p></div></div>
+                    </div>
+                    <div className="playbook-checklist">
+                      <div className="chart-card-title"><i className="ti ti-clipboard-check"></i> Conferência de fim do dia</div>
+                      <div className="playbook-check-row"><i className="ti ti-circle-check"></i><span>Todos os aluguéis do dia foram cadastrados.</span></div>
+                      <div className="playbook-check-row"><i className="ti ti-circle-check"></i><span>Pagamentos recebidos foram marcados como Pago ou Parcial.</span></div>
+                      <div className="playbook-check-row"><i className="ti ti-circle-check"></i><span>Despesas e manutenções foram registradas no dia correto.</span></div>
+                      <div className="playbook-check-row"><i className="ti ti-circle-check"></i><span>Dashboard foi revisado para identificar saldo a receber.</span></div>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </main>
@@ -380,13 +418,21 @@ export default function App() {
               </div>
               <div className="form-row">
                 <div className="form-group"><label>Duração (h)</label><input ref={setRef(af,'duracao')} type="number" step="0.5" /></div>
-                <div className="form-group"><label>Valor (R$) *</label><input ref={setRef(af,'valor')} type="number" /></div>
+                <div className="form-group"><label>Valor total (R$) *</label><input ref={setRef(af,'valor')} type="number" step="0.01" /></div>
+              </div>
+              <div className="form-row">
+                <div className="form-group"><label>Valor pago (R$)</label><input ref={setRef(af,'valorPago')} type="number" step="0.01" /></div>
+                <div className="form-group"><label>Data do pagamento</label><input ref={setRef(af,'dataPagamento')} type="date" /></div>
               </div>
               <div className="form-row">
                 <div className="form-group"><label>Pagamento</label><select ref={setRef(af,'pagamento')}><option value="PIX">PIX</option><option value="DINHEIRO">Dinheiro</option><option value="CARTAO_DEBITO">Cartão Débito</option><option value="CARTAO_CREDITO">Cartão Crédito</option></select></div>
-                <div className="form-group"><label>Status</label><select ref={setRef(af,'status')}><option value="CONCLUIDO">Concluído</option><option value="ANDAMENTO">Em andamento</option><option value="CANCELADO">Cancelado</option></select></div>
+                <div className="form-group"><label>Status pagamento</label><select ref={setRef(af,'statusPagamento')} onChange={handleStatusPagamentoChange}><option value="PAGO">Pago</option><option value="PARCIAL">Parcial</option><option value="PENDENTE">Pendente</option></select></div>
               </div>
-              <div className="form-group"><label>Rota / Destino</label><input ref={setRef(af,'rota')} /></div>
+              <div className="form-row">
+                <div className="form-group"><label>Status</label><select ref={setRef(af,'status')}><option value="CONCLUIDO">Concluído</option><option value="ANDAMENTO">Em andamento</option><option value="CANCELADO">Cancelado</option></select></div>
+                <div className="form-group"><label>Rota / Destino</label><input ref={setRef(af,'rota')} /></div>
+              </div>
+              <div className="form-group"><label>Observações</label><textarea ref={setRef(af,'obs')}></textarea></div>
             </div>
             <div className="modal-footer"><button className="btn btn-secondary" onClick={() => setModal(null)}>Cancelar</button><button className="btn btn-primary" onClick={saveAluguel} disabled={saving}>{saving ? 'Salvando...' : 'Salvar'}</button></div>
           </div>
