@@ -78,7 +78,10 @@ export default function App() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true)
-      const res = await fetch('/api/dashboard')
+      const res = await fetch(`/api/dashboard?t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' },
+      })
       if (!res.ok) throw new Error()
       setData(await res.json())
     } catch { showToast('Erro ao carregar dados. Verifique a conexão com o banco.', true) }

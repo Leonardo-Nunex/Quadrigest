@@ -1,6 +1,16 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+export const fetchCache = 'force-no-store'
+
+const noStoreHeaders = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  Pragma: 'no-cache',
+  Expires: '0',
+}
+
 export async function GET() {
   try {
     const [veiculos, alugueis, manutencoes, lancamentos] = await Promise.all([
@@ -68,9 +78,9 @@ export async function GET() {
         devedores: Object.values(devedoresPorCliente),
         qtdInadimplentes: inadimplentes.length,
       }
-    })
+    }, { headers: noStoreHeaders })
   } catch (e) {
     console.error(e)
-    return NextResponse.json({ error: 'Erro ao carregar dashboard' }, { status: 500 })
+    return NextResponse.json({ error: 'Erro ao carregar dashboard' }, { status: 500, headers: noStoreHeaders })
   }
 }
