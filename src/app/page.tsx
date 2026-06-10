@@ -50,6 +50,7 @@ export default function App() {
   const [data, setData] = useState<DashData | null>(null)
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState<{ msg: string; err?: boolean } | null>(null)
+  const [showValues, setShowValues] = useState(false)
   const [manutFilter, setManutFilter] = useState('TODAS')
   const [finFilter, setFinFilter] = useState('TODAS')
   const [veiStatusFilter, setVeiStatusFilter] = useState('TODOS')
@@ -90,6 +91,14 @@ export default function App() {
   const cf = useRef<FormRef>({})
 
   const showToast = (msg: string, err = false) => { setToast({ msg, err }); setTimeout(() => setToast(null), 3000) }
+  const hiddenValue = '••••'
+  const moneyValue = (v: number) => showValues ? BRL(v) : hiddenValue
+  const metricValue = (v: string | number) => showValues ? String(v) : hiddenValue
+  const ValueToggle = () => (
+    <button className="value-eye" onClick={() => setShowValues(v => !v)} title={showValues ? 'Ocultar valores' : 'Mostrar valores'} aria-label={showValues ? 'Ocultar valores' : 'Mostrar valores'}>
+      <i className={`ti ti-eye${showValues ? '-off' : ''}`}></i>
+    </button>
+  )
 
   const loadData = useCallback(async () => {
     try {
@@ -411,13 +420,13 @@ export default function App() {
                       <i className="ti ti-steering-wheel dash-welcome-icon"></i>
                     </div>
                     <div className="metrics-row">
-                      <div className="metric-card metric-accent"><div className="metric-label">Veículos</div><div className="metric-value">{m.totalVeiculos}</div><div className="metric-sub">{m.veiculosDisponiveis} disponíveis</div></div>
-                      <div className="metric-card metric-accent"><div className="metric-label">Aluguéis</div><div className="metric-value">{m.totalAlugueis}</div></div>
-                      <div className="metric-card metric-accent"><div className="metric-label">Receita total</div><div className="metric-value metric-up">{BRL(m.totalReceitas)}</div></div>
-                      <div className="metric-card metric-accent-blue"><div className="metric-label">Lucro líquido</div><div className={`metric-value ${m.lucro >= 0 ? 'metric-up' : 'metric-down'}`}>{BRL(m.lucro)}</div></div>
-                      <div className="metric-card metric-accent-amber"><div className="metric-label">ROI</div><div className="metric-value" style={{ color: m.roi >= 0 ? 'var(--green)' : 'var(--red)' }}>{m.roi.toFixed(1)}%</div></div>
-                      <div className="metric-card metric-accent-red"><div className="metric-label">Manutenções</div><div className="metric-value">{m.totalManutencoes}</div><div className="metric-sub">{m.manutencoesAgendadas} agendadas</div></div>
-                      <div className="metric-card" style={{borderLeft:'3px solid #e05252',background:m.totalDevedor>0?'#fdeaea':undefined}}><div className="metric-label">💰 A receber</div><div className="metric-value" style={{color:m.totalDevedor>0?'var(--red)':'var(--green)'}}>{BRL(m.totalDevedor)}</div><div className="metric-sub">{m.qtdInadimplentes} aluguel(is) pendente(s)</div></div>
+                      <div className="metric-card metric-accent"><ValueToggle /><div className="metric-label">Veículos</div><div className="metric-value">{metricValue(m.totalVeiculos)}</div><div className="metric-sub">{showValues ? m.veiculosDisponiveis : hiddenValue} disponíveis</div></div>
+                      <div className="metric-card metric-accent"><ValueToggle /><div className="metric-label">Aluguéis</div><div className="metric-value">{metricValue(m.totalAlugueis)}</div></div>
+                      <div className="metric-card metric-accent"><ValueToggle /><div className="metric-label">Receita total</div><div className="metric-value metric-up">{moneyValue(m.totalReceitas)}</div></div>
+                      <div className="metric-card metric-accent-blue"><ValueToggle /><div className="metric-label">Lucro líquido</div><div className={`metric-value ${m.lucro >= 0 ? 'metric-up' : 'metric-down'}`}>{moneyValue(m.lucro)}</div></div>
+                      <div className="metric-card metric-accent-amber"><ValueToggle /><div className="metric-label">ROI</div><div className="metric-value" style={{ color: m.roi >= 0 ? 'var(--green)' : 'var(--red)' }}>{metricValue(m.roi.toFixed(1) + '%')}</div></div>
+                      <div className="metric-card metric-accent-red"><ValueToggle /><div className="metric-label">Manutenções</div><div className="metric-value">{metricValue(m.totalManutencoes)}</div><div className="metric-sub">{showValues ? m.manutencoesAgendadas : hiddenValue} agendadas</div></div>
+                      <div className="metric-card" style={{borderLeft:'3px solid #e05252',background:m.totalDevedor>0?'#fdeaea':undefined}}><ValueToggle /><div className="metric-label">💰 A receber</div><div className="metric-value" style={{color:m.totalDevedor>0?'var(--red)':'var(--green)'}}>{moneyValue(m.totalDevedor)}</div><div className="metric-sub">{showValues ? m.qtdInadimplentes : hiddenValue} aluguel(is) pendente(s)</div></div>
                     </div>
                     <div className="charts-grid">
                       <div className="chart-card"><div className="chart-card-title"><i className="ti ti-chart-bar"></i> Receita vs Custos</div><div style={{ position: 'relative', height: 220 }}><canvas id="chartRC"></canvas></div></div>
@@ -467,10 +476,10 @@ export default function App() {
                   <div>
                     <div className="section-header"><div><div className="section-title">Alugueis</div><div className="section-subtitle">Registro de locacoes</div></div><button className="btn btn-primary" onClick={() => openModal('aluguel')}><i className="ti ti-plus"></i> Novo aluguel</button></div>
                     {m && <div className="metrics-row" style={{ marginBottom: 16 }}>
-                      <div className="metric-card metric-accent"><div className="metric-label">Total filtrado</div><div className="metric-value">{alugueisFilt.length}</div><div className="metric-sub">de {alugueis.length} aluguel(is)</div></div>
-                      <div className="metric-card metric-accent"><div className="metric-label">Receita total</div><div className="metric-value metric-up">{BRL(m.totalReceitas)}</div></div>
-                      <div className="metric-card metric-accent-amber"><div className="metric-label">Ticket medio</div><div className="metric-value">{BRL(m.ticketMedio)}</div></div>
-                      <div className="metric-card metric-accent-blue"><div className="metric-label">Em andamento</div><div className="metric-value">{m.alugueisAndamento}</div></div>
+                      <div className="metric-card metric-accent"><ValueToggle /><div className="metric-label">Total filtrado</div><div className="metric-value">{metricValue(alugueisFilt.length)}</div><div className="metric-sub">de {showValues ? alugueis.length : hiddenValue} aluguel(is)</div></div>
+                      <div className="metric-card metric-accent"><ValueToggle /><div className="metric-label">Receita total</div><div className="metric-value metric-up">{moneyValue(m.totalReceitas)}</div></div>
+                      <div className="metric-card metric-accent-amber"><ValueToggle /><div className="metric-label">Ticket medio</div><div className="metric-value">{moneyValue(m.ticketMedio)}</div></div>
+                      <div className="metric-card metric-accent-blue"><ValueToggle /><div className="metric-label">Em andamento</div><div className="metric-value">{metricValue(m.alugueisAndamento)}</div></div>
                     </div>}
                     <div className="view-switch">
                       <button className={'tab-btn' + (aluView === 'tabela' ? ' active' : '')} onClick={() => setAluView('tabela')}><i className="ti ti-table"></i> Tabela</button>
@@ -561,9 +570,9 @@ export default function App() {
                   <div>
                     <div className="section-header"><div><div className="section-title">Financeiro</div><div className="section-subtitle">Receitas, despesas e fluxo de caixa</div></div><button className="btn btn-primary" onClick={() => openModal('despesa')}><i className="ti ti-plus"></i> Nova despesa</button></div>
                     <div className="metrics-row">
-                      <div className="metric-card metric-accent"><div className="metric-label">Receitas</div><div className="metric-value metric-up">{BRL(m.totalReceitas)}</div></div>
-                      <div className="metric-card metric-accent-red"><div className="metric-label">Despesas</div><div className="metric-value metric-down">{BRL(m.totalDespesas)}</div></div>
-                      <div className="metric-card metric-accent-blue"><div className="metric-label">Lucro líquido</div><div className={`metric-value ${m.lucro >= 0 ? 'metric-up' : 'metric-down'}`}>{BRL(m.lucro)}</div></div>
+                      <div className="metric-card metric-accent"><ValueToggle /><div className="metric-label">Receitas</div><div className="metric-value metric-up">{moneyValue(m.totalReceitas)}</div></div>
+                      <div className="metric-card metric-accent-red"><ValueToggle /><div className="metric-label">Despesas</div><div className="metric-value metric-down">{moneyValue(m.totalDespesas)}</div></div>
+                      <div className="metric-card metric-accent-blue"><ValueToggle /><div className="metric-label">Lucro líquido</div><div className={`metric-value ${m.lucro >= 0 ? 'metric-up' : 'metric-down'}`}>{moneyValue(m.lucro)}</div></div>
                     </div>
                     <div className="tab-bar">{['TODAS','RECEITA','DESPESA'].map(f => <button key={f} className={`tab-btn${finFilter === f ? ' active' : ''}`} onClick={() => setFinFilter(f)}>{f === 'TODAS' ? 'Todas' : f === 'RECEITA' ? 'Receitas' : 'Despesas'}</button>)}</div>
                     <div className="card"><div className="table-wrapper"><table>
@@ -580,17 +589,18 @@ export default function App() {
                   <div>
                     <div className="section-header"><div><div className="section-title">ROI &amp; Análise</div><div className="section-subtitle">Retorno sobre investimento</div></div></div>
                     <div className="roi-card">
-                      <div><div className="roi-label">ROI acumulado</div><div className="roi-value">{m.roi.toFixed(1)}%</div><div className="roi-detail">Sobre {BRL(m.custoAquisicao)} investidos</div></div>
+                      <ValueToggle />
+                      <div><div className="roi-label">ROI acumulado</div><div className="roi-value">{metricValue(m.roi.toFixed(1) + '%')}</div><div className="roi-detail">Sobre {moneyValue(m.custoAquisicao)} investidos</div></div>
                       <div className="roi-breakdown">
-                        <div className="roi-row"><span>Receita total</span><strong style={{ color: '#4cbf94' }}>{BRL(m.totalReceitas)}</strong></div>
-                        <div className="roi-row"><span>Despesas totais</span><strong style={{ color: '#e05252' }}>{BRL(m.totalDespesas)}</strong></div>
-                        <div className="roi-row"><span>Lucro líquido</span><strong style={{ color: m.lucro >= 0 ? '#4cbf94' : '#e05252' }}>{BRL(m.lucro)}</strong></div>
+                        <div className="roi-row"><span>Receita total</span><strong style={{ color: '#4cbf94' }}>{moneyValue(m.totalReceitas)}</strong></div>
+                        <div className="roi-row"><span>Despesas totais</span><strong style={{ color: '#e05252' }}>{moneyValue(m.totalDespesas)}</strong></div>
+                        <div className="roi-row"><span>Lucro líquido</span><strong style={{ color: m.lucro >= 0 ? '#4cbf94' : '#e05252' }}>{moneyValue(m.lucro)}</strong></div>
                       </div>
                     </div>
                     <div className="metrics-row">
-                      <div className="metric-card metric-accent"><div className="metric-label">Ticket médio</div><div className="metric-value">{BRL(m.ticketMedio)}</div></div>
-                      <div className="metric-card metric-accent-red"><div className="metric-label">Custo manutenções</div><div className="metric-value metric-down">{BRL(manutencoes.reduce((s, mn) => s + mn.custo, 0))}</div></div>
-                      <div className="metric-card metric-accent-amber"><div className="metric-label">Receita/veículo</div><div className="metric-value">{veiculos.length > 0 ? BRL(m.totalReceitas / veiculos.length) : '—'}</div></div>
+                      <div className="metric-card metric-accent"><ValueToggle /><div className="metric-label">Ticket médio</div><div className="metric-value">{moneyValue(m.ticketMedio)}</div></div>
+                      <div className="metric-card metric-accent-red"><ValueToggle /><div className="metric-label">Custo manutenções</div><div className="metric-value metric-down">{moneyValue(manutencoes.reduce((s, mn) => s + mn.custo, 0))}</div></div>
+                      <div className="metric-card metric-accent-amber"><ValueToggle /><div className="metric-label">Receita/veículo</div><div className="metric-value">{veiculos.length > 0 ? moneyValue(m.totalReceitas / veiculos.length) : '—'}</div></div>
                     </div>
                     <div className="section-header"><div><div className="section-title">ROI por veiculo</div><div className="section-subtitle">Receita, despesa, lucro e retorno individual</div></div></div>
                     <div className="card"><div className="table-wrapper"><table>

@@ -74,7 +74,7 @@ html, body { height: 100%; font-family: 'DM Sans', sans-serif; font-size: 14px; 
 
 .card { background: var(--card); border-radius: var(--radius); border: 1px solid var(--border); }
 .metrics-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 24px; }
-.metric-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
+.metric-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 42px 16px 18px; position: relative; }
 .metric-label { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 4px; }
 .metric-value { font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 700; line-height: 1.1; }
 .metric-sub { font-size: 11px; color: var(--text-light); margin-top: 4px; }
@@ -84,6 +84,10 @@ html, body { height: 100%; font-family: 'DM Sans', sans-serif; font-size: 14px; 
 .metric-accent-amber { border-left: 3px solid var(--amber); }
 .metric-accent-red { border-left: 3px solid var(--red); }
 .metric-accent-blue { border-left: 3px solid var(--blue); }
+.value-eye { position: absolute; top: 10px; right: 10px; width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 8px; background: rgba(255,255,255,0.82); color: var(--text-muted); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; }
+.value-eye:hover { color: var(--brand-purple); border-color: var(--brand-purple); background: #fff; }
+.roi-card .value-eye { border-color: rgba(255,255,255,0.18); background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.68); }
+.roi-card .value-eye:hover { color: #fff; border-color: var(--brand-yellow); background: rgba(255,255,255,0.14); }
 
 .table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 table { width: 100%; border-collapse: collapse; }
@@ -182,7 +186,7 @@ textarea { resize: vertical; min-height: 70px; }
 .dash-welcome p { font-size: 12px; color: rgba(255,255,255,0.6); }
 .dash-welcome-icon { font-size: 48px; opacity: 0.3; z-index: 1; }
 
-.roi-card { background: var(--sidebar-bg); border-radius: var(--radius); padding: 20px 22px; color: #fff; display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+.roi-card { background: var(--sidebar-bg); border-radius: var(--radius); padding: 20px 52px 20px 22px; color: #fff; display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; position: relative; }
 .roi-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: rgba(255,255,255,0.5); margin-bottom: 4px; }
 .roi-value { font-family: 'Syne', sans-serif; font-size: 36px; font-weight: 700; color: var(--green-mid); }
 .roi-detail { font-size: 11px; color: rgba(255,255,255,0.4); margin-top: 2px; }
@@ -239,7 +243,7 @@ textarea { resize: vertical; min-height: 70px; }
   .chart-card { padding: 14px; }
   .form-row { grid-template-columns: 1fr; }
   .metrics-row { grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
-  .metric-card { padding: 13px; border-radius: var(--radius-sm); }
+  .metric-card { padding: 13px 40px 13px 13px; border-radius: var(--radius-sm); }
   .metric-value { font-size: 20px; overflow-wrap: anywhere; }
   .metric-label { font-size: 10px; }
   .card { border-radius: var(--radius-sm); overflow: hidden; }
