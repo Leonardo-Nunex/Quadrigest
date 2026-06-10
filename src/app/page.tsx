@@ -517,7 +517,7 @@ export default function App() {
                               const selected = !!day && aluSelectedDays.includes(day)
                               return (
                                 <button key={day || `empty-${idx}`} className={'calendar-day' + (!day ? ' empty' : '') + (selected ? ' selected' : '') + (items.length ? ' has-items' : '')} disabled={!day} onClick={() => day && toggleAluguelDay(day)}>
-                                  {day && <><span className="calendar-day-number">{Number(day.slice(8, 10))}</span>{items.length > 0 && <span className="calendar-day-count">{items.length} aluguel(is)</span>}{items.slice(0, 2).map(a => <span key={a.id} className="calendar-event"><strong>{a.veiculo?.placa || '-'}</strong> {a.cliente}</span>)}{items.length > 2 && <span className="calendar-more">+{items.length - 2}</span>}{items.length > 0 && <span className="calendar-total">{BRL(totalDia)}</span>}</>}
+                                  {day && <><span className="calendar-day-number">{Number(day.slice(8, 10))}</span>{items.length > 0 && <span className="calendar-day-count">{items.length} aluguel(is)</span>}{items.slice(0, 2).map(a => <span key={a.id} className="calendar-event"><span className="calendar-event-main"><strong>{a.veiculo?.placa || '-'}</strong> {a.cliente}</span><span className="calendar-event-status"><Badge s={a.statusPagamento || 'PENDENTE'} /><Badge s={a.status} /></span></span>)}{items.length > 2 && <span className="calendar-more">+{items.length - 2}</span>}{items.length > 0 && <span className="calendar-total">{BRL(totalDia)}</span>}</>}
                                 </button>
                               )
                             })}

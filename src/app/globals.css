@@ -162,7 +162,10 @@ textarea { resize: vertical; min-height: 70px; }
 .calendar-day.has-items .calendar-day-number { color: var(--green-dark); }
 .calendar-day-number { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 14px; }
 .calendar-day-count { color: var(--text-muted); font-size: 11px; }
-.calendar-event { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; font-size: 11px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.calendar-event { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 5px 6px; font-size: 11px; line-height: 1.25; overflow: hidden; display: flex; flex-direction: column; gap: 4px; }
+.calendar-event-main { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.calendar-event-status { display: flex; flex-wrap: wrap; gap: 4px; }
+.calendar-event-status .badge { padding: 2px 6px; font-size: 10px; line-height: 1.2; }
 .calendar-more { color: var(--text-muted); font-size: 11px; }
 .calendar-total { margin-top: auto; color: var(--green-dark); font-weight: 700; font-size: 11px; }
 
