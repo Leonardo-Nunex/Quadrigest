@@ -21,7 +21,7 @@ const fmtDate = (d: string) => {
   return `${day}/${month}/${year}`
 }
 const isoDate = (d: string) => dateOnly(d)
-const COLORS = ['#1a9e6e', '#3b82c4', '#e05252', '#f5a623', '#7c6fe0', '#d4538b', '#4cbf94']
+const COLORS = ['#3840FF', '#8E1FFF', '#FFAE38', '#FF7738', '#1a9e6e', '#e05252', '#050505']
 const statusMap: Record<string, [string, string]> = {
   DISPONIVEL: ['badge-green', 'Disponível'], ALUGADO: ['badge-blue', 'Alugado'], MANUTENCAO: ['badge-amber', 'Manutenção'], INATIVO: ['badge-gray', 'Inativo'],
   CONCLUIDO: ['badge-green', 'Concluído'], ANDAMENTO: ['badge-blue', 'Andamento'], CANCELADO: ['badge-red', 'Cancelado'],
@@ -119,13 +119,13 @@ export default function App() {
     const desM = months.map(mo => lancamentos.filter(l => l.tipo === 'DESPESA' && getMonthKey(l.data) === mo.key).reduce((s, l) => s + l.valor, 0))
     const labels = months.map(m => m.label)
     destroy('rc'); const rc = document.getElementById('chartRC') as HTMLCanvasElement
-    if (rc) chartsRef.current.rc = new w.Chart(rc, { type: 'bar', data: { labels, datasets: [{ label: 'Receita', data: recM, backgroundColor: '#1a9e6e', borderRadius: 4 }, { label: 'Custos', data: desM, backgroundColor: '#e05252', borderRadius: 4 }] }, options: opts(v => 'R$' + v.toLocaleString('pt-BR')) })
+    if (rc) chartsRef.current.rc = new w.Chart(rc, { type: 'bar', data: { labels, datasets: [{ label: 'Receita', data: recM, backgroundColor: '#3840FF', borderRadius: 4 }, { label: 'Custos', data: desM, backgroundColor: '#FF7738', borderRadius: 4 }] }, options: opts(v => 'R$' + v.toLocaleString('pt-BR')) })
     destroy('lc'); const lc = document.getElementById('chartLC') as HTMLCanvasElement
-    if (lc) chartsRef.current.lc = new w.Chart(lc, { type: 'line', data: { labels, datasets: [{ data: months.map((_, i) => recM[i] - desM[i]), borderColor: '#3b82c4', backgroundColor: 'rgba(59,130,196,0.08)', fill: true, tension: 0.4, pointBackgroundColor: '#3b82c4', pointRadius: 4 }] }, options: opts(v => 'R$' + v.toLocaleString('pt-BR')) })
+    if (lc) chartsRef.current.lc = new w.Chart(lc, { type: 'line', data: { labels, datasets: [{ data: months.map((_, i) => recM[i] - desM[i]), borderColor: '#8E1FFF', backgroundColor: 'rgba(142,31,255,0.08)', fill: true, tension: 0.4, pointBackgroundColor: '#8E1FFF', pointRadius: 4 }] }, options: opts(v => 'R$' + v.toLocaleString('pt-BR')) })
     destroy('vei'); const vc = document.getElementById('chartVei') as HTMLCanvasElement
     if (vc && veiculos.length) { const vData = veiculos.map(v => ({ l: v.placa, n: alugueis.filter(a => a.veiculoId === v.id && a.status === 'CONCLUIDO').length })); chartsRef.current.vei = new w.Chart(vc, { type: 'doughnut', data: { labels: vData.map(v => v.l), datasets: [{ data: vData.map(v => v.n), backgroundColor: COLORS }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, cutout: '60%' } }) }
     destroy('mn'); const mn = document.getElementById('chartMn') as HTMLCanvasElement
-    if (mn) chartsRef.current.mn = new w.Chart(mn, { type: 'bar', data: { labels, datasets: [{ label: 'Preventiva', data: months.map(mo => manutencoes.filter(m => m.tipo === 'PREVENTIVA' && getMonthKey(m.data) === mo.key).reduce((s, m) => s + m.custo, 0)), backgroundColor: '#f5a623', borderRadius: 4 }, { label: 'Corretiva', data: months.map(mo => manutencoes.filter(m => m.tipo === 'CORRETIVA' && getMonthKey(m.data) === mo.key).reduce((s, m) => s + m.custo, 0)), backgroundColor: '#e05252', borderRadius: 4 }] }, options: opts(v => 'R$' + v.toLocaleString('pt-BR')) })
+    if (mn) chartsRef.current.mn = new w.Chart(mn, { type: 'bar', data: { labels, datasets: [{ label: 'Preventiva', data: months.map(mo => manutencoes.filter(m => m.tipo === 'PREVENTIVA' && getMonthKey(m.data) === mo.key).reduce((s, m) => s + m.custo, 0)), backgroundColor: '#FFAE38', borderRadius: 4 }, { label: 'Corretiva', data: months.map(mo => manutencoes.filter(m => m.tipo === 'CORRETIVA' && getMonthKey(m.data) === mo.key).reduce((s, m) => s + m.custo, 0)), backgroundColor: '#FF7738', borderRadius: 4 }] }, options: opts(v => 'R$' + v.toLocaleString('pt-BR')) })
   }
 
   async function apiCall(url: string, method: string, body?: object) {
@@ -368,7 +368,7 @@ export default function App() {
         <aside className="sidebar" id="sidebar">
           <div className="sidebar-logo">
             <div className="sidebar-logo-icon"><i className="ti ti-steering-wheel"></i></div>
-            <div><div className="sidebar-logo-text">QuadriGest</div><div className="sidebar-logo-sub">Gestão de Aluguel</div></div>
+            <div><div className="sidebar-logo-text">Aleca</div><div className="sidebar-logo-sub">Gestão de aluguéis</div></div>
           </div>
           <nav className="sidebar-nav">
             {pages.map((p) => (
@@ -381,7 +381,7 @@ export default function App() {
               </div>
             ))}
           </nav>
-          <div className="sidebar-bottom"><div className="sidebar-version">QuadriGest v2.0 · Prisma + PostgreSQL</div></div>
+          <div className="sidebar-bottom"><div className="sidebar-version">© 2026 Aleca. Todos os direitos reservados.</div></div>
         </aside>
 
         <div className="main">
@@ -407,7 +407,7 @@ export default function App() {
                 {page === 'dashboard' && m && (
                   <div>
                     <div className="dash-welcome">
-                      <div><h2>Bem-vindo ao QuadriGest</h2><p>{veiculos.length} veículo(s) · {m.alugueisAndamento} em andamento</p></div>
+                      <div><h2>Aleca - Gestão de aluguéis</h2><p>{veiculos.length} veículo(s) · {m.alugueisAndamento} em andamento</p></div>
                       <i className="ti ti-steering-wheel dash-welcome-icon"></i>
                     </div>
                     <div className="metrics-row">
@@ -608,7 +608,7 @@ export default function App() {
                     <div className="playbook-hero">
                       <div>
                         <div className="playbook-kicker">Operação diária</div>
-                        <h2>Manual rápido do QuadriGest</h2>
+                        <h2>Manual rápido da Aleca</h2>
                         <p>Use este roteiro para manter locações, frota, manutenção e financeiro sempre atualizados.</p>
                       </div>
                       <i className="ti ti-book"></i>

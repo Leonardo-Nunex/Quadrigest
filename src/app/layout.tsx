@@ -3,8 +3,8 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'QuadriGest — Gestão de Aluguel de Quadriciclos',
-  description: 'Sistema completo para gestão de aluguel de quadriciclos',
+  title: 'Aleca - Gestão de aluguéis',
+  description: 'Sistema completo para gestão de aluguéis da Aleca',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
