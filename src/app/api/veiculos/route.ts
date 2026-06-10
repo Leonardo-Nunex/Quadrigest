@@ -19,7 +19,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { placa, modelo, ano, cor, custo, chassi, status, obs } = body
+    const { placa, modelo, ano, cor, custo, valorAluguel, chassi, status, obs } = body
 
     if (!placa || !modelo) {
       return NextResponse.json({ error: 'Placa e modelo são obrigatórios' }, { status: 400 })
@@ -32,6 +32,7 @@ export async function POST(req: NextRequest) {
         ano: ano ? Number(ano) : null,
         cor: cor || null,
         custo: Number(custo) || 0,
+        valorAluguel: Number(valorAluguel) || 0,
         chassi: chassi || null,
         status: status || 'DISPONIVEL',
         obs: obs || null,

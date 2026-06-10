@@ -1,13 +1,14 @@
 'use client'
 import { useEffect, useRef, useState, useCallback } from 'react'
 
-type Veiculo = { id: string; placa: string; modelo: string; ano?: number; cor?: string; custo: number; chassi?: string; status: string; obs?: string }
+type Veiculo = { id: string; placa: string; modelo: string; ano?: number; cor?: string; custo: number; valorAluguel: number; chassi?: string; status: string; obs?: string }
 type Aluguel = { id: string; data: string; veiculoId: string; veiculo?: { placa: string; modelo: string }; cliente: string; contato?: string; duracao?: number; valor: number; valorPago: number; pagamento: string; statusPagamento: string; dataPagamento?: string; status: string; rota?: string; obs?: string }
 type Manutencao = { id: string; data: string; veiculoId: string; veiculo?: { placa: string; modelo: string }; tipo: string; descricao: string; custo: number; oficina?: string; proxima?: string; status: string }
 type Lancamento = { id: string; data: string; descricao: string; categoria: string; tipo: string; valor: number; veiculoId?: string; aluguelId?: string; manutencaoId?: string }
+type Cliente = { id: string; nome: string; telefone: string; obs?: string }
 type Devedores = { cliente: string; total: number; qtd: number }
 type Metricas = { totalVeiculos: number; veiculosDisponiveis: number; totalAlugueis: number; alugueisAndamento: number; totalReceitas: number; totalDespesas: number; lucro: number; custoAquisicao: number; roi: number; ticketMedio: number; totalManutencoes: number; manutencoesAgendadas: number; totalDevedor: number; devedores: Devedores[]; qtdInadimplentes: number }
-type DashData = { veiculos: Veiculo[]; alugueis: Aluguel[]; manutencoes: Manutencao[]; lancamentos: Lancamento[]; metricas: Metricas }
+type DashData = { veiculos: Veiculo[]; alugueis: Aluguel[]; manutencoes: Manutencao[]; lancamentos: Lancamento[]; clientes: Cliente[]; metricas: Metricas }
 type FormRef = Record<string, HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null>
 
 const BRL = (v: number) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })
@@ -59,10 +60,24 @@ export default function App() {
   const [aluInicio, setAluInicio] = useState('')
   const [aluFim, setAluFim] = useState('')
   const [aluSearch, setAluSearch] = useState('')
+  const [aluView, setAluView] = useState<'tabela' | 'calendario'>('tabela')
+  const [aluCalendarMonth, setAluCalendarMonth] = useState(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  })
+  const [aluSelectedDays, setAluSelectedDays] = useState<string[]>([])
+  const [batchPgto, setBatchPgto] = useState('PAGO')
+  const [batchStatus, setBatchStatus] = useState('CONCLUIDO')
+  const [batchDataMode, setBatchDataMode] = useState('DATA_ALUGUEL')
+  const [batchFixedDate, setBatchFixedDate] = useState(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  })
   const [manutVeiculoFilter, setManutVeiculoFilter] = useState('TODOS')
   const [manutStatusFilter, setManutStatusFilter] = useState('TODOS')
   const [manutInicio, setManutInicio] = useState('')
   const [manutFim, setManutFim] = useState('')
+  const [clienteSearch, setClienteSearch] = useState('')
   const chartsRef = useRef<Record<string, any>>({})
   const [modal, setModal] = useState<string | null>(null)
   const [editId, setEditId] = useState<string | null>(null)
@@ -72,6 +87,7 @@ export default function App() {
   const af = useRef<FormRef>({})
   const mf = useRef<FormRef>({})
   const df = useRef<FormRef>({})
+  const cf = useRef<FormRef>({})
 
   const showToast = (msg: string, err = false) => { setToast({ msg, err }); setTimeout(() => setToast(null), 3000) }
 
@@ -132,11 +148,23 @@ export default function App() {
     if (!getVal(af, 'valorPago') && getVal(af, 'valor')) setVal(af, 'valorPago', getVal(af, 'valor'))
   }
 
+  function handleClienteAluguelChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const cliente = data?.clientes.find(c => c.id === e.target.value)
+    if (!cliente) return
+    setVal(af, 'cliente', cliente.nome)
+    setVal(af, 'contato', cliente.telefone)
+  }
+
+  function handleVeiculoAluguelChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const veiculo = data?.veiculos.find(v => v.id === e.target.value)
+    if (veiculo?.valorAluguel) setVal(af, 'valor', String(veiculo.valorAluguel))
+  }
+
   function openModal(type: string, id?: string) {
     setModal(type); setEditId(id || null)
     setTimeout(() => {
       if (!id) { clearForm(type); return }
-      const map: Record<string, any[]> = { veiculo: data?.veiculos || [], aluguel: data?.alugueis || [], manutencao: data?.manutencoes || [], despesa: data?.lancamentos || [] }
+      const map: Record<string, any[]> = { veiculo: data?.veiculos || [], aluguel: data?.alugueis || [], manutencao: data?.manutencoes || [], despesa: data?.lancamentos || [], cliente: data?.clientes || [] }
       const rec = map[type]?.find((x: any) => x.id === id)
       if (rec) fillForm(type, rec)
     }, 10)
@@ -144,21 +172,23 @@ export default function App() {
 
   function clearForm(type: string) {
     const today = todayISO()
-    if (type === 'veiculo') { ['placa','modelo','ano','cor','custo','chassi','obs'].forEach(k => setVal(vf, k, '')); setVal(vf, 'status', 'DISPONIVEL') }
-    if (type === 'aluguel') { ['cliente','contato','duracao','valor','valorPago','dataPagamento','rota','obs'].forEach(k => setVal(af, k, '')); setVal(af, 'data', today); setVal(af, 'veiculo', ''); setVal(af, 'pagamento', 'PIX'); setVal(af, 'statusPagamento', 'PAGO'); setVal(af, 'status', 'CONCLUIDO') }
+    if (type === 'veiculo') { ['placa','modelo','ano','cor','custo','valorAluguel','chassi','obs'].forEach(k => setVal(vf, k, '')); setVal(vf, 'status', 'DISPONIVEL') }
+    if (type === 'aluguel') { ['cliente','contato','duracao','valor','valorPago','dataPagamento','rota','obs'].forEach(k => setVal(af, k, '')); setVal(af, 'data', today); setVal(af, 'clienteLista', ''); setVal(af, 'veiculo', ''); setVal(af, 'pagamento', 'PIX'); setVal(af, 'statusPagamento', 'PENDENTE'); setVal(af, 'status', 'CONCLUIDO') }
     if (type === 'manutencao') { ['desc','custo','oficina','proxima'].forEach(k => setVal(mf, k, '')); setVal(mf, 'data', today); setVal(mf, 'veiculo', ''); setVal(mf, 'tipo', 'PREVENTIVA'); setVal(mf, 'status', 'CONCLUIDA') }
     if (type === 'despesa') { ['desc','valor'].forEach(k => setVal(df, k, '')); setVal(df, 'data', today); setVal(df, 'categoria', 'COMBUSTIVEL'); setVal(df, 'veiculo', '') }
+    if (type === 'cliente') { ['nome','telefone','obs'].forEach(k => setVal(cf, k, '')) }
   }
 
   function fillForm(type: string, rec: any) {
-    if (type === 'veiculo') { ['placa','modelo','ano','cor','custo','chassi','obs'].forEach(k => setVal(vf, k, String(rec[k] || ''))); setVal(vf, 'status', rec.status) }
-    if (type === 'aluguel') { setVal(af, 'data', isoDate(rec.data)); setVal(af, 'dataPagamento', isoDate(rec.dataPagamento)); ['cliente','contato','duracao','valor','valorPago','rota','obs'].forEach(k => setVal(af, k, String(rec[k] || ''))); setVal(af, 'veiculo', rec.veiculoId); setVal(af, 'pagamento', rec.pagamento); setVal(af, 'statusPagamento', rec.statusPagamento || 'PAGO'); setVal(af, 'status', rec.status) }
+    if (type === 'veiculo') { ['placa','modelo','ano','cor','custo','valorAluguel','chassi','obs'].forEach(k => setVal(vf, k, String(rec[k] || ''))); setVal(vf, 'status', rec.status) }
+    if (type === 'aluguel') { setVal(af, 'data', isoDate(rec.data)); setVal(af, 'dataPagamento', isoDate(rec.dataPagamento)); ['cliente','contato','duracao','valor','valorPago','rota','obs'].forEach(k => setVal(af, k, String(rec[k] || ''))); setVal(af, 'clienteLista', ''); setVal(af, 'veiculo', rec.veiculoId); setVal(af, 'pagamento', rec.pagamento); setVal(af, 'statusPagamento', rec.statusPagamento || 'PENDENTE'); setVal(af, 'status', rec.status) }
     if (type === 'manutencao') { setVal(mf, 'data', isoDate(rec.data)); ['desc','custo','oficina','proxima'].forEach(k => setVal(mf, k, String(rec[k] || ''))); setVal(mf, 'veiculo', rec.veiculoId); setVal(mf, 'tipo', rec.tipo); setVal(mf, 'status', rec.status) }
     if (type === 'despesa') { setVal(df, 'data', isoDate(rec.data)); ['desc','valor'].forEach(k => setVal(df, k, String(rec[k] || ''))); setVal(df, 'categoria', rec.categoria); setVal(df, 'veiculo', rec.veiculoId || '') }
+    if (type === 'cliente') { ['nome','telefone','obs'].forEach(k => setVal(cf, k, String(rec[k] || ''))) }
   }
 
   async function saveVeiculo() {
-    const body = { placa: getVal(vf,'placa'), modelo: getVal(vf,'modelo'), ano: getVal(vf,'ano'), cor: getVal(vf,'cor'), custo: getVal(vf,'custo'), chassi: getVal(vf,'chassi'), status: getVal(vf,'status'), obs: getVal(vf,'obs') }
+    const body = { placa: getVal(vf,'placa'), modelo: getVal(vf,'modelo'), ano: getVal(vf,'ano'), cor: getVal(vf,'cor'), custo: getVal(vf,'custo'), valorAluguel: getVal(vf,'valorAluguel'), chassi: getVal(vf,'chassi'), status: getVal(vf,'status'), obs: getVal(vf,'obs') }
     if (!body.placa || !body.modelo) { showToast('Placa e modelo são obrigatórios', true); return }
     setSaving(true)
     try { editId ? await apiCall(`/api/veiculos/${editId}`, 'PUT', body) : await apiCall('/api/veiculos', 'POST', body); setModal(null); await loadData(); showToast('Veículo salvo!') }
@@ -171,6 +201,15 @@ export default function App() {
     if (!body.data || !body.veiculoId || !body.cliente || !body.valor) { showToast('Preencha os campos obrigatórios', true); return }
     setSaving(true)
     try { editId ? await apiCall(`/api/alugueis/${editId}`, 'PUT', body) : await apiCall('/api/alugueis', 'POST', body); setModal(null); await loadData(); showToast('Aluguel registrado!') }
+    catch (e: any) { showToast(e.message, true) }
+    setSaving(false)
+  }
+
+  async function saveCliente() {
+    const body = { nome: getVal(cf,'nome'), telefone: getVal(cf,'telefone'), obs: getVal(cf,'obs') }
+    if (!body.nome || !body.telefone) { showToast('Nome e telefone sao obrigatorios', true); return }
+    setSaving(true)
+    try { editId ? await apiCall(`/api/clientes/${editId}`, 'PUT', body) : await apiCall('/api/clientes', 'POST', body); setModal(null); await loadData(); showToast('Cliente salvo!') }
     catch (e: any) { showToast(e.message, true) }
     setSaving(false)
   }
@@ -199,8 +238,56 @@ export default function App() {
     catch (e: any) { showToast(e.message, true) }
   }
 
+  const buildAluguelBody = (a: Aluguel, overrides: Partial<Aluguel>) => ({
+    data: dateOnly(overrides.data || a.data),
+    veiculoId: overrides.veiculoId || a.veiculoId,
+    cliente: overrides.cliente || a.cliente,
+    contato: overrides.contato ?? a.contato ?? '',
+    duracao: overrides.duracao ?? a.duracao ?? '',
+    valor: overrides.valor ?? a.valor,
+    valorPago: overrides.valorPago ?? a.valorPago,
+    pagamento: overrides.pagamento || a.pagamento,
+    statusPagamento: overrides.statusPagamento || a.statusPagamento,
+    dataPagamento: overrides.dataPagamento !== undefined ? dateOnly(overrides.dataPagamento) : dateOnly(a.dataPagamento),
+    status: overrides.status || a.status,
+    rota: overrides.rota ?? a.rota ?? '',
+    obs: overrides.obs ?? a.obs ?? '',
+  })
+
+  async function applyAluguelBatch() {
+    const selecionados = alugueisFilt.filter(a => aluSelectedDays.includes(dateOnly(a.data)) && getMonthKey(a.data) === aluCalendarMonth)
+    if (!selecionados.length) { showToast('Selecione dias com aluguéis no calendário.', true); return }
+    if (!confirm(`Atualizar ${selecionados.length} aluguel(is) selecionado(s)?`)) return
+
+    setSaving(true)
+    try {
+      await Promise.all(selecionados.map(a => {
+        const dataPagamento = batchPgto === 'PENDENTE' ? '' :
+          batchDataMode === 'DATA_ALUGUEL' ? dateOnly(a.data) :
+          batchDataMode === 'DATA_FIXA' ? batchFixedDate :
+          dateOnly(a.dataPagamento)
+        const valorPago = batchPgto === 'PAGO' ? a.valor : batchPgto === 'PENDENTE' ? 0 : a.valorPago
+        const body = buildAluguelBody(a, {
+          statusPagamento: batchPgto,
+          status: batchStatus,
+          valorPago,
+          dataPagamento,
+        })
+        return apiCall(`/api/alugueis/${a.id}`, 'PUT', body)
+      }))
+      setAluSelectedDays([])
+      await loadData()
+      showToast('Aluguéis atualizados em lote!')
+    } catch (e: any) {
+      showToast(e.message || 'Erro na atualização em lote', true)
+    }
+    setSaving(false)
+  }
+
   const pages = [
     { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard', section: 'Visão Geral' },
+    { id: 'clientes', label: 'Clientes', icon: 'users', section: 'Cadastros', count: data?.clientes.length },
+
     { id: 'veiculos', label: 'Veículos', icon: 'car', section: 'Operações', count: data?.veiculos.length },
     { id: 'alugueis', label: 'Aluguéis', icon: 'route', count: data?.alugueis.length },
     { id: 'manutencoes', label: 'Manutenções', icon: 'tool', count: data?.manutencoes.length },
@@ -213,6 +300,7 @@ export default function App() {
   const alugueis = data?.alugueis || []
   const manutencoes = data?.manutencoes || []
   const lancamentos = data?.lancamentos || []
+  const clientes = data?.clientes || []
   const m = data?.metricas
   const inDateRange = (d: string, start: string, end: string) => {
     const dt = dateOnly(d)
@@ -223,6 +311,10 @@ export default function App() {
     return (veiStatusFilter === 'TODOS' || v.status === veiStatusFilter) &&
       (!q || [v.placa, v.modelo, v.cor || '', v.chassi || ''].some(x => x.toLowerCase().includes(q)))
   })
+  const clientesFilt = clientes.filter(c => {
+    const q = clienteSearch.trim().toLowerCase()
+    return !q || [c.nome, c.telefone, c.obs || ''].some(x => x.toLowerCase().includes(q))
+  })
   const alugueisFilt = alugueis.filter(a => {
     const q = aluSearch.trim().toLowerCase()
     return (aluVeiculoFilter === 'TODOS' || a.veiculoId === aluVeiculoFilter) &&
@@ -231,6 +323,27 @@ export default function App() {
       inDateRange(a.data, aluInicio, aluFim) &&
       (!q || [a.cliente, a.contato || '', a.rota || '', a.veiculo?.placa || '', a.veiculo?.modelo || ''].some(x => x.toLowerCase().includes(q)))
   })
+  const calendarMonthDate = new Date(`${aluCalendarMonth}-01T12:00:00`)
+  const calendarMonthLabel = calendarMonthDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+  const calendarYear = calendarMonthDate.getFullYear()
+  const calendarMonth = calendarMonthDate.getMonth()
+  const calendarStartPad = new Date(calendarYear, calendarMonth, 1).getDay()
+  const calendarDaysCount = new Date(calendarYear, calendarMonth + 1, 0).getDate()
+  const calendarCells = [
+    ...Array.from({ length: calendarStartPad }, () => null),
+    ...Array.from({ length: calendarDaysCount }, (_, i) => `${aluCalendarMonth}-${String(i + 1).padStart(2, '0')}`)
+  ]
+  const calendarAlugueis = alugueisFilt.filter(a => getMonthKey(a.data) === aluCalendarMonth)
+  const selectedCalendarAlugueis = calendarAlugueis.filter(a => aluSelectedDays.includes(dateOnly(a.data)))
+  const moveAluguelMonth = (delta: number) => {
+    const d = new Date(`${aluCalendarMonth}-01T12:00:00`)
+    d.setMonth(d.getMonth() + delta)
+    setAluCalendarMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+    setAluSelectedDays([])
+  }
+  const toggleAluguelDay = (day: string) => {
+    setAluSelectedDays(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day])
+  }
   const manutFilt = manutencoes.filter(x =>
     (manutFilter === 'TODAS' ? true : manutFilter === 'AGENDADA' ? x.status === 'AGENDADA' : x.tipo === manutFilter) &&
     (manutVeiculoFilter === 'TODOS' || x.veiculoId === manutVeiculoFilter) &&
@@ -239,8 +352,15 @@ export default function App() {
   )
   const lancFilt = lancamentos.filter(x => finFilter === 'TODAS' ? true : x.tipo === finFilter)
   const clearVeiculoFilters = () => { setVeiStatusFilter('TODOS'); setVeiSearch('') }
-  const clearAluguelFilters = () => { setAluVeiculoFilter('TODOS'); setAluPgtoFilter('TODOS'); setAluStatusFilter('TODOS'); setAluInicio(''); setAluFim(''); setAluSearch('') }
+  const clearAluguelFilters = () => { setAluVeiculoFilter('TODOS'); setAluPgtoFilter('TODOS'); setAluStatusFilter('TODOS'); setAluInicio(''); setAluFim(''); setAluSearch(''); setAluSelectedDays([]) }
   const clearManutFilters = () => { setManutFilter('TODAS'); setManutVeiculoFilter('TODOS'); setManutStatusFilter('TODOS'); setManutInicio(''); setManutFim('') }
+  const roiPorVeiculo = veiculos.map(v => {
+    const receitas = lancamentos.filter(l => l.veiculoId === v.id && l.tipo === 'RECEITA').reduce((s, l) => s + l.valor, 0)
+    const despesas = lancamentos.filter(l => l.veiculoId === v.id && l.tipo === 'DESPESA').reduce((s, l) => s + l.valor, 0)
+    const lucro = receitas - despesas
+    const roi = v.custo > 0 ? (lucro / v.custo) * 100 : 0
+    return { veiculo: v, receitas, despesas, lucro, roi }
+  })
 
   return (
     <>
@@ -308,6 +428,22 @@ export default function App() {
                   </div>
                 )}
 
+
+                {page === 'clientes' && (
+                  <div>
+                    <div className="section-header"><div><div className="section-title">Clientes</div><div className="section-subtitle">Cadastro de clientes para agilizar alugueis</div></div><button className="btn btn-primary" onClick={() => openModal('cliente')}><i className="ti ti-plus"></i> Novo cliente</button></div>
+                    <div className="filter-bar"><div className="filter-group filter-grow"><label>Buscar</label><input value={clienteSearch} onChange={e => setClienteSearch(e.target.value)} placeholder="Nome, telefone ou observacao" /></div></div>
+                    <div className="filter-summary">Mostrando {clientesFilt.length} de {clientes.length} cliente(s)</div>
+                    <div className="card"><div className="table-wrapper"><table>
+                      <thead><tr><th>Nome</th><th>Telefone</th><th>Observacoes</th><th>Acoes</th></tr></thead>
+                      <tbody>{clientesFilt.length === 0 ? <tr><td colSpan={4}><div className="empty-state"><i className="ti ti-users-off"></i><p>Nenhum cliente encontrado</p></div></td></tr> : clientesFilt.map(c => (
+                        <tr key={c.id}><td className="fw-semibold">{c.nome}</td><td className="nowrap">{c.telefone}</td><td>{c.obs || '-'}</td>
+                        <td><div className="td-actions"><button className="btn btn-secondary btn-sm btn-icon" onClick={() => openModal('cliente', c.id)}><i className="ti ti-edit"></i></button><button className="btn btn-danger btn-sm btn-icon" onClick={() => deleteItem('clientes', c.id)}><i className="ti ti-trash"></i></button></div></td></tr>
+                      ))}</tbody>
+                    </table></div></div>
+                  </div>
+                )}
+
                 {page === 'veiculos' && (
                   <div>
                     <div className="section-header"><div><div className="section-title">Veiculos</div><div className="section-subtitle">Cadastro e controle da frota</div></div><button className="btn btn-primary" onClick={() => openModal('veiculo')}><i className="ti ti-plus"></i> Novo veiculo</button></div>
@@ -318,9 +454,9 @@ export default function App() {
                     </div>
                     <div className="filter-summary">Mostrando {veiculosFilt.length} de {veiculos.length} veiculo(s)</div>
                     <div className="card"><div className="table-wrapper"><table>
-                      <thead><tr><th>Placa</th><th>Modelo</th><th>Ano</th><th>Cor</th><th>Custo aquisicao</th><th>Status</th><th>Acoes</th></tr></thead>
-                      <tbody>{veiculosFilt.length === 0 ? <tr><td colSpan={7}><div className="empty-state"><i className="ti ti-car-off"></i><p>Nenhum veiculo encontrado</p></div></td></tr> : veiculosFilt.map(v => (
-                        <tr key={v.id}><td className="fw-semibold nowrap">{v.placa}</td><td>{v.modelo}</td><td>{v.ano || '-'}</td><td>{v.cor || '-'}</td><td className="nowrap">{BRL(v.custo)}</td><td><Badge s={v.status} /></td>
+                      <thead><tr><th>Placa</th><th>Modelo</th><th>Ano</th><th>Cor</th><th>Custo aquisicao</th><th>Valor aluguel</th><th>Status</th><th>Acoes</th></tr></thead>
+                      <tbody>{veiculosFilt.length === 0 ? <tr><td colSpan={8}><div className="empty-state"><i className="ti ti-car-off"></i><p>Nenhum veiculo encontrado</p></div></td></tr> : veiculosFilt.map(v => (
+                        <tr key={v.id}><td className="fw-semibold nowrap">{v.placa}</td><td>{v.modelo}</td><td>{v.ano || '-'}</td><td>{v.cor || '-'}</td><td className="nowrap">{BRL(v.custo)}</td><td className="nowrap">{BRL(v.valorAluguel)}</td><td><Badge s={v.status} /></td>
                         <td><div className="td-actions"><button className="btn btn-secondary btn-sm btn-icon" onClick={() => openModal('veiculo', v.id)}><i className="ti ti-edit"></i></button><button className="btn btn-danger btn-sm btn-icon" onClick={() => deleteItem('veiculos', v.id)}><i className="ti ti-trash"></i></button></div></td></tr>
                       ))}</tbody>
                     </table></div></div>
@@ -336,22 +472,66 @@ export default function App() {
                       <div className="metric-card metric-accent-amber"><div className="metric-label">Ticket medio</div><div className="metric-value">{BRL(m.ticketMedio)}</div></div>
                       <div className="metric-card metric-accent-blue"><div className="metric-label">Em andamento</div><div className="metric-value">{m.alugueisAndamento}</div></div>
                     </div>}
+                    <div className="view-switch">
+                      <button className={'tab-btn' + (aluView === 'tabela' ? ' active' : '')} onClick={() => setAluView('tabela')}><i className="ti ti-table"></i> Tabela</button>
+                      <button className={'tab-btn' + (aluView === 'calendario' ? ' active' : '')} onClick={() => setAluView('calendario')}><i className="ti ti-calendar-month"></i> Calendario mensal</button>
+                    </div>
                     <div className="filter-bar filter-bar-wide">
                       <div className="filter-group"><label>Veiculo</label><select value={aluVeiculoFilter} onChange={e => setAluVeiculoFilter(e.target.value)}><option value="TODOS">Todos</option>{veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} - {v.modelo}</option>)}</select></div>
-                      <div className="filter-group"><label>Status pgto</label><select value={aluPgtoFilter} onChange={e => setAluPgtoFilter(e.target.value)}><option value="TODOS">Todos</option><option value="PAGO">Pago</option><option value="PARCIAL">Parcial</option><option value="PENDENTE">Pendente</option></select></div>
+                      <div className="filter-group"><label>Status pgto</label><select value={aluPgtoFilter} onChange={e => setAluPgtoFilter(e.target.value)}><option value="TODOS">Todos</option><option value="PENDENTE">Pendente</option><option value="PAGO">Pago</option><option value="PARCIAL">Parcial</option></select></div>
                       <div className="filter-group"><label>Status</label><select value={aluStatusFilter} onChange={e => setAluStatusFilter(e.target.value)}><option value="TODOS">Todos</option><option value="CONCLUIDO">Concluido</option><option value="ANDAMENTO">Andamento</option><option value="CANCELADO">Cancelado</option></select></div>
                       <div className="filter-group"><label>De</label><input type="date" value={aluInicio} onChange={e => setAluInicio(e.target.value)} /></div>
                       <div className="filter-group"><label>Ate</label><input type="date" value={aluFim} onChange={e => setAluFim(e.target.value)} /></div>
                       <div className="filter-group filter-grow"><label>Buscar</label><input value={aluSearch} onChange={e => setAluSearch(e.target.value)} placeholder="Cliente, contato, rota ou veiculo" /></div>
                       <button className="btn btn-secondary btn-sm filter-clear" onClick={clearAluguelFilters}><i className="ti ti-filter-x"></i> Limpar</button>
                     </div>
-                    <div className="card"><div className="table-wrapper"><table>
+                    {aluView === 'calendario' && (
+                      <div className="calendar-stack">
+                        <div className="calendar-toolbar">
+                          <div className="calendar-nav">
+                            <button className="btn btn-secondary btn-sm btn-icon" onClick={() => moveAluguelMonth(-1)}><i className="ti ti-chevron-left"></i></button>
+                            <div>
+                              <div className="calendar-title">{calendarMonthLabel}</div>
+                              <div className="calendar-subtitle">{calendarAlugueis.length} aluguel(is) no mes filtrado</div>
+                            </div>
+                            <button className="btn btn-secondary btn-sm btn-icon" onClick={() => moveAluguelMonth(1)}><i className="ti ti-chevron-right"></i></button>
+                          </div>
+                          <input className="calendar-month-input" type="month" value={aluCalendarMonth} onChange={e => { setAluCalendarMonth(e.target.value); setAluSelectedDays([]) }} />
+                        </div>
+                        <div className="batch-panel">
+                          <div className="batch-summary"><strong>{aluSelectedDays.length}</strong> dia(s) selecionado(s) · <strong>{selectedCalendarAlugueis.length}</strong> aluguel(is)</div>
+                          <div className="batch-fields">
+                            <div className="form-group"><label>Status pgto</label><select value={batchPgto} onChange={e => setBatchPgto(e.target.value)}><option value="PAGO">Pago</option><option value="PENDENTE">Pendente</option><option value="PARCIAL">Parcial</option></select></div>
+                            <div className="form-group"><label>Status aluguel</label><select value={batchStatus} onChange={e => setBatchStatus(e.target.value)}><option value="CONCLUIDO">Concluido</option><option value="ANDAMENTO">Andamento</option><option value="CANCELADO">Cancelado</option></select></div>
+                            <div className="form-group"><label>Data pagamento</label><select value={batchDataMode} onChange={e => setBatchDataMode(e.target.value)}><option value="DATA_ALUGUEL">Data do aluguel</option><option value="DATA_FIXA">Data fixa</option><option value="MANTER">Manter atual</option></select></div>
+                            {batchDataMode === 'DATA_FIXA' && <div className="form-group"><label>Data fixa</label><input type="date" value={batchFixedDate} onChange={e => setBatchFixedDate(e.target.value)} /></div>}
+                            <button className="btn btn-primary batch-apply" onClick={applyAluguelBatch} disabled={saving || selectedCalendarAlugueis.length === 0}><i className="ti ti-checks"></i> Aplicar lote</button>
+                          </div>
+                        </div>
+                        <div className="calendar-card">
+                          <div className="calendar-weekdays">{['Dom','Seg','Ter','Qua','Qui','Sex','Sab'].map(d => <div key={d}>{d}</div>)}</div>
+                          <div className="calendar-grid">
+                            {calendarCells.map((day, idx) => {
+                              const items = day ? calendarAlugueis.filter(a => dateOnly(a.data) === day) : []
+                              const totalDia = items.reduce((s, a) => s + a.valor, 0)
+                              const selected = !!day && aluSelectedDays.includes(day)
+                              return (
+                                <button key={day || `empty-${idx}`} className={'calendar-day' + (!day ? ' empty' : '') + (selected ? ' selected' : '') + (items.length ? ' has-items' : '')} disabled={!day} onClick={() => day && toggleAluguelDay(day)}>
+                                  {day && <><span className="calendar-day-number">{Number(day.slice(8, 10))}</span>{items.length > 0 && <span className="calendar-day-count">{items.length} aluguel(is)</span>}{items.slice(0, 2).map(a => <span key={a.id} className="calendar-event"><strong>{a.veiculo?.placa || '-'}</strong> {a.cliente}</span>)}{items.length > 2 && <span className="calendar-more">+{items.length - 2}</span>}{items.length > 0 && <span className="calendar-total">{BRL(totalDia)}</span>}</>}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {aluView === 'tabela' && <div className="card"><div className="table-wrapper"><table>
                       <thead><tr><th>Data</th><th>Veiculo</th><th>Cliente</th><th>Duracao</th><th>Valor</th><th>Pago</th><th>A receber</th><th>Forma Pgto</th><th>Status Pgto</th><th>Status</th><th>Acoes</th></tr></thead>
                       <tbody>{alugueisFilt.length === 0 ? <tr><td colSpan={11}><div className="empty-state"><i className="ti ti-route-off"></i><p>Nenhum aluguel encontrado</p></div></td></tr> : alugueisFilt.map(a => (
-                        <tr key={a.id}><td className="nowrap">{fmtDate(a.data)}</td><td className="nowrap">{a.veiculo ? a.veiculo.placa + ' - ' + a.veiculo.modelo : '-'}</td><td>{a.cliente}</td><td className="nowrap">{a.duracao ? a.duracao + 'h' : '-'}</td><td className="nowrap fw-semibold">{BRL(a.valor)}</td><td className="nowrap text-green">{BRL(a.valorPago)}</td><td className={'nowrap fw-semibold ' + (saldoReceber(a) > 0 ? 'text-red' : 'text-green')}>{BRL(saldoReceber(a))}</td><td>{pagMap[a.pagamento] || a.pagamento}</td><td><Badge s={a.statusPagamento || "PAGO"} /></td><td><Badge s={a.status} /></td>
+                        <tr key={a.id}><td className="nowrap">{fmtDate(a.data)}</td><td className="nowrap">{a.veiculo ? a.veiculo.placa + ' - ' + a.veiculo.modelo : '-'}</td><td>{a.cliente}</td><td className="nowrap">{a.duracao ? a.duracao + 'h' : '-'}</td><td className="nowrap fw-semibold">{BRL(a.valor)}</td><td className="nowrap text-green">{BRL(a.valorPago)}</td><td className={'nowrap fw-semibold ' + (saldoReceber(a) > 0 ? 'text-red' : 'text-green')}>{BRL(saldoReceber(a))}</td><td>{pagMap[a.pagamento] || a.pagamento}</td><td><Badge s={a.statusPagamento || "PENDENTE"} /></td><td><Badge s={a.status} /></td>
                         <td><div className="td-actions"><button className="btn btn-secondary btn-sm btn-icon" onClick={() => openModal('aluguel', a.id)}><i className="ti ti-edit"></i></button><button className="btn btn-danger btn-sm btn-icon" onClick={() => deleteItem('alugueis', a.id)}><i className="ti ti-trash"></i></button></div></td></tr>
                       ))}</tbody>
-                    </table></div></div>
+                    </table></div></div>}
                   </div>
                 )}
 
@@ -412,6 +592,13 @@ export default function App() {
                       <div className="metric-card metric-accent-red"><div className="metric-label">Custo manutenções</div><div className="metric-value metric-down">{BRL(manutencoes.reduce((s, mn) => s + mn.custo, 0))}</div></div>
                       <div className="metric-card metric-accent-amber"><div className="metric-label">Receita/veículo</div><div className="metric-value">{veiculos.length > 0 ? BRL(m.totalReceitas / veiculos.length) : '—'}</div></div>
                     </div>
+                    <div className="section-header"><div><div className="section-title">ROI por veiculo</div><div className="section-subtitle">Receita, despesa, lucro e retorno individual</div></div></div>
+                    <div className="card"><div className="table-wrapper"><table>
+                      <thead><tr><th>Veiculo</th><th>Custo aquisicao</th><th>Receitas</th><th>Despesas</th><th>Lucro</th><th>ROI</th></tr></thead>
+                      <tbody>{roiPorVeiculo.length === 0 ? <tr><td colSpan={6}><div className="empty-state"><i className="ti ti-chart-line"></i><p>Nenhum veiculo cadastrado</p></div></td></tr> : roiPorVeiculo.map(r => (
+                        <tr key={r.veiculo.id}><td className="fw-semibold nowrap">{r.veiculo.placa} - {r.veiculo.modelo}</td><td className="nowrap">{BRL(r.veiculo.custo)}</td><td className="nowrap text-green">{BRL(r.receitas)}</td><td className="nowrap text-red">{BRL(r.despesas)}</td><td className={'nowrap fw-semibold ' + (r.lucro >= 0 ? 'text-green' : 'text-red')}>{BRL(r.lucro)}</td><td className={'nowrap fw-semibold ' + (r.roi >= 0 ? 'text-green' : 'text-red')}>{r.roi.toFixed(1)}%</td></tr>
+                      ))}</tbody>
+                    </table></div></div>
                   </div>
                 )}
 
@@ -495,9 +682,10 @@ export default function App() {
                 <div className="form-group"><label>Cor</label><input ref={setRef(vf,'cor')} placeholder="Vermelho" /></div>
               </div>
               <div className="form-row">
-                <div className="form-group"><label>Custo de aquisição (R$)</label><input ref={setRef(vf,'custo')} type="number" placeholder="8000" /></div>
-                <div className="form-group"><label>Status</label><select ref={setRef(vf,'status')}><option value="DISPONIVEL">Disponível</option><option value="ALUGADO">Alugado</option><option value="MANUTENCAO">Em manutenção</option><option value="INATIVO">Inativo</option></select></div>
+                <div className="form-group"><label>Custo de aquisicao (R$)</label><input ref={setRef(vf,'custo')} type="number" placeholder="8000" /></div>
+                <div className="form-group"><label>Valor padrao aluguel (R$)</label><input ref={setRef(vf,'valorAluguel')} type="number" step="0.01" placeholder="350" /></div>
               </div>
+              <div className="form-group"><label>Status</label><select ref={setRef(vf,'status')}><option value="DISPONIVEL">Disponivel</option><option value="ALUGADO">Alugado</option><option value="MANUTENCAO">Em manutencao</option><option value="INATIVO">Inativo</option></select></div>
               <div className="form-group"><label>Chassi</label><input ref={setRef(vf,'chassi')} /></div>
               <div className="form-group"><label>Observações</label><textarea ref={setRef(vf,'obs')}></textarea></div>
             </div>
@@ -513,8 +701,9 @@ export default function App() {
             <div className="modal-body">
               <div className="form-row">
                 <div className="form-group"><label>Data *</label><input ref={setRef(af,'data')} type="date" /></div>
-                <div className="form-group"><label>Veículo *</label><select ref={setRef(af,'veiculo')}><option value="">Selecione...</option>{veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} — {v.modelo}</option>)}</select></div>
+                <div className="form-group"><label>Veiculo *</label><select ref={setRef(af,'veiculo')} onChange={handleVeiculoAluguelChange}><option value="">Selecione...</option>{veiculos.map(v => <option key={v.id} value={v.id}>{v.placa} - {v.modelo}</option>)}</select></div>
               </div>
+              <div className="form-group"><label>Cliente cadastrado</label><select ref={setRef(af,'clienteLista')} onChange={handleClienteAluguelChange}><option value="">Selecione um cliente...</option>{clientes.map(c => <option key={c.id} value={c.id}>{c.nome} - {c.telefone}</option>)}</select></div>
               <div className="form-row">
                 <div className="form-group"><label>Cliente *</label><input ref={setRef(af,'cliente')} /></div>
                 <div className="form-group"><label>Contato</label><input ref={setRef(af,'contato')} placeholder="(85) 9 9999-9999" /></div>
@@ -529,7 +718,7 @@ export default function App() {
               </div>
               <div className="form-row">
                 <div className="form-group"><label>Pagamento</label><select ref={setRef(af,'pagamento')}><option value="PIX">PIX</option><option value="DINHEIRO">Dinheiro</option><option value="CARTAO_DEBITO">Cartão Débito</option><option value="CARTAO_CREDITO">Cartão Crédito</option></select></div>
-                <div className="form-group"><label>Status pagamento</label><select ref={setRef(af,'statusPagamento')} onChange={handleStatusPagamentoChange}><option value="PAGO">Pago</option><option value="PARCIAL">Parcial</option><option value="PENDENTE">Pendente</option></select></div>
+                <div className="form-group"><label>Status pagamento</label><select ref={setRef(af,'statusPagamento')} onChange={handleStatusPagamentoChange}><option value="PENDENTE">Pendente</option><option value="PAGO">Pago</option><option value="PARCIAL">Parcial</option></select></div>
               </div>
               <div className="form-row">
                 <div className="form-group"><label>Status</label><select ref={setRef(af,'status')}><option value="CONCLUIDO">Concluído</option><option value="ANDAMENTO">Em andamento</option><option value="CANCELADO">Cancelado</option></select></div>
@@ -538,6 +727,22 @@ export default function App() {
               <div className="form-group"><label>Observações</label><textarea ref={setRef(af,'obs')}></textarea></div>
             </div>
             <div className="modal-footer"><button className="btn btn-secondary" onClick={() => setModal(null)}>Cancelar</button><button className="btn btn-primary" onClick={saveAluguel} disabled={saving}>{saving ? 'Salvando...' : 'Salvar'}</button></div>
+          </div>
+        </div>
+      )}
+
+      {modal === 'cliente' && (
+        <div className="modal-overlay open" onClick={e => e.target === e.currentTarget && setModal(null)}>
+          <div className="modal">
+            <div className="modal-header"><div className="modal-title">{editId ? 'Editar' : 'Cadastrar'} Cliente</div><button className="modal-close" onClick={() => setModal(null)}><i className="ti ti-x"></i></button></div>
+            <div className="modal-body">
+              <div className="form-row">
+                <div className="form-group"><label>Nome *</label><input ref={setRef(cf,'nome')} placeholder="Nome do cliente" /></div>
+                <div className="form-group"><label>Telefone *</label><input ref={setRef(cf,'telefone')} placeholder="(85) 9 9999-9999" /></div>
+              </div>
+              <div className="form-group"><label>Observacoes</label><textarea ref={setRef(cf,'obs')}></textarea></div>
+            </div>
+            <div className="modal-footer"><button className="btn btn-secondary" onClick={() => setModal(null)}>Cancelar</button><button className="btn btn-primary" onClick={saveCliente} disabled={saving}>{saving ? 'Salvando...' : 'Salvar'}</button></div>
           </div>
         </div>
       )}

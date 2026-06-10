@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
 
     const valorTotal = Number(valor)
     const valorPagoInformado = valorPago !== undefined && valorPago !== ''
-    const statusSolicitado = statusPagamento || 'PAGO'
+    const statusSolicitado = statusPagamento || 'PENDENTE'
     const valorPagoBase = valorPagoInformado ? Number(valorPago) : statusSolicitado === 'PAGO' ? valorTotal : 0
     const pago = Math.min(Math.max(valorPagoBase, 0), valorTotal)
     const statusPgto = pago >= valorTotal ? 'PAGO' : pago > 0 ? 'PARCIAL' : 'PENDENTE'

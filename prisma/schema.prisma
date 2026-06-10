@@ -15,6 +15,7 @@ model Veiculo {
   ano          Int?
   cor          String?
   custo        Float         @default(0)
+  valorAluguel Float         @default(0)
   chassi       String?
   status       StatusVeiculo @default(DISPONIVEL)
   obs          String?
@@ -33,6 +34,15 @@ enum StatusVeiculo {
   INATIVO
 }
 
+model Cliente {
+  id           String   @id @default(cuid())
+  nome         String
+  telefone     String
+  obs          String?
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+}
+
 model Aluguel {
   id             String         @id @default(cuid())
   data           DateTime
@@ -42,7 +52,7 @@ model Aluguel {
   valor          Float
   valorPago      Float          @default(0)
   pagamento      FormaPagamento @default(PIX)
-  statusPagamento StatusPagamento @default(PAGO)
+  statusPagamento StatusPagamento @default(PENDENTE)
   dataPagamento  DateTime?
   status         StatusAluguel  @default(CONCLUIDO)
   rota           String?

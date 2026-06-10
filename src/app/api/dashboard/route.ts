@@ -13,7 +13,7 @@ const noStoreHeaders = {
 
 export async function GET() {
   try {
-    const [veiculos, alugueis, manutencoes, lancamentos] = await Promise.all([
+    const [veiculos, alugueis, manutencoes, lancamentos, clientes] = await Promise.all([
       prisma.veiculo.findMany({ orderBy: { criadoEm: 'desc' } }),
       prisma.aluguel.findMany({
         orderBy: { data: 'desc' },
@@ -27,6 +27,7 @@ export async function GET() {
         orderBy: { data: 'desc' },
         include: { veiculo: { select: { placa: true, modelo: true } } }
       }),
+      prisma.cliente.findMany({ orderBy: { nome: 'asc' } }),
     ])
 
     const totalReceitas = lancamentos.filter(l => l.tipo === 'RECEITA').reduce((s, l) => s + l.valor, 0)
@@ -61,6 +62,7 @@ export async function GET() {
       alugueis,
       manutencoes,
       lancamentos,
+      clientes,
       metricas: {
         totalVeiculos: veiculos.length,
         veiculosDisponiveis: veiculos.filter(v => v.status === 'DISPONIVEL').length,

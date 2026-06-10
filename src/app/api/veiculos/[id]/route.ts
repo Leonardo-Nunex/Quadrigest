@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const body = await req.json()
-    const { placa, modelo, ano, cor, custo, chassi, status, obs } = body
+    const { placa, modelo, ano, cor, custo, valorAluguel, chassi, status, obs } = body
 
     const veiculo = await prisma.veiculo.update({
       where: { id: params.id },
@@ -14,6 +14,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         ano: ano ? Number(ano) : null,
         cor: cor || null,
         custo: Number(custo) || 0,
+        valorAluguel: Number(valorAluguel) || 0,
         chassi: chassi || null,
         status: status || 'DISPONIVEL',
         obs: obs || null,
